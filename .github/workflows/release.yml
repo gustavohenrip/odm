@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build backend jar
+        working-directory: backend
+        run: ./gradlew --no-daemon bootJar -x test
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx ng build --configuration=production
+      - name: Stage artifacts
+        shell: bash
+        run: |
+          mkdir -p resources/backend electron/app
+          cp backend/build/libs/*.jar resources/backend/adm-backend.jar
+          cp -R frontend/dist/frontend/browser/* electron/app/
+      - name: Publish installer
+        working-directory: electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --publish always
