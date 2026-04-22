@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Azrael"
+  },
+  "nav": {
+    "all": "Tous",
+    "active": "Actifs",
+    "queued": "En file",
+    "scheduled": "Programmés",
+    "completed": "Terminés",
+    "failed": "Échoués"
+  }
+}

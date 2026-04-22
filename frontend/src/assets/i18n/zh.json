@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Azrael"
+  },
+  "nav": {
+    "all": "全部",
+    "active": "进行中",
+    "queued": "队列中",
+    "scheduled": "已排期",
+    "completed": "已完成",
+    "failed": "失败"
+  }
+}

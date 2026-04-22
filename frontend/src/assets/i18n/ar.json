@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "Azrael"
+  },
+  "nav": {
+    "all": "الكل",
+    "active": "نشطة",
+    "queued": "في الطابور",
+    "scheduled": "مجدولة",
+    "completed": "مكتملة",
+    "failed": "فشلت"
+  }
+}
