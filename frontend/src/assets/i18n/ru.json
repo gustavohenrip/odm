@@ -9,5 +9,40 @@
     "scheduled": "Запланированные",
     "completed": "Завершённые",
     "failed": "С ошибкой"
+  },
+  "actions": {
+    "newDownload": "Новая загрузка",
+    "search": "Поиск",
+    "pasteUrlOrDrop": "Вставьте URL или перетащите файл",
+    "pause": "Пауза",
+    "resume": "Продолжить",
+    "remove": "Удалить",
+    "openFolder": "Открыть папку",
+    "more": "Ещё",
+    "settings": "Настройки"
+  },
+  "sidebar": {
+    "sessionSpeed": "Скорость сессии"
+  },
+  "queue": {
+    "columns": {
+      "name": "Имя",
+      "size": "Размер",
+      "speed": "Скорость",
+      "eta": "Осталось",
+      "progress": "Прогресс"
+    },
+    "empty": "Загрузок пока нет",
+    "footer": {
+      "items": "{{count}} элементов · {{total}}",
+      "updated": "Обновлено только что"
+    }
+  },
+  "status": {
+    "downloading": "загрузка",
+    "paused": "пауза",
+    "queued": "в очереди",
+    "complete": "готово",
+    "failed": "ошибка"
   }
 }

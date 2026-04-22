@@ -9,5 +9,40 @@
     "scheduled": "予約済み",
     "completed": "完了",
     "failed": "失敗"
+  },
+  "actions": {
+    "newDownload": "新しいダウンロード",
+    "search": "検索",
+    "pasteUrlOrDrop": "URL を貼り付けるかファイルをドロップ",
+    "pause": "一時停止",
+    "resume": "再開",
+    "remove": "削除",
+    "openFolder": "フォルダを開く",
+    "more": "その他",
+    "settings": "設定"
+  },
+  "sidebar": {
+    "sessionSpeed": "セッションの速度"
+  },
+  "queue": {
+    "columns": {
+      "name": "名前",
+      "size": "サイズ",
+      "speed": "速度",
+      "eta": "残り時間",
+      "progress": "進行状況"
+    },
+    "empty": "まだダウンロードはありません",
+    "footer": {
+      "items": "{{count}} 件 · {{total}}",
+      "updated": "たった今更新"
+    }
+  },
+  "status": {
+    "downloading": "ダウンロード中",
+    "paused": "一時停止",
+    "queued": "待機中",
+    "complete": "完了",
+    "failed": "失敗"
   }
 }

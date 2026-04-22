@@ -9,5 +9,40 @@
     "scheduled": "已排期",
     "completed": "已完成",
     "failed": "失败"
+  },
+  "actions": {
+    "newDownload": "新建下载",
+    "search": "搜索",
+    "pasteUrlOrDrop": "粘贴链接或拖入文件",
+    "pause": "暂停",
+    "resume": "继续",
+    "remove": "删除",
+    "openFolder": "打开文件夹",
+    "more": "更多",
+    "settings": "设置"
+  },
+  "sidebar": {
+    "sessionSpeed": "会话速度"
+  },
+  "queue": {
+    "columns": {
+      "name": "名称",
+      "size": "大小",
+      "speed": "速度",
+      "eta": "剩余时间",
+      "progress": "进度"
+    },
+    "empty": "暂无下载",
+    "footer": {
+      "items": "{{count}} 项 · {{total}}",
+      "updated": "刚刚更新"
+    }
+  },
+  "status": {
+    "downloading": "下载中",
+    "paused": "已暂停",
+    "queued": "队列中",
+    "complete": "已完成",
+    "failed": "失败"
   }
 }

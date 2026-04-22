@@ -9,5 +9,40 @@
     "scheduled": "مجدولة",
     "completed": "مكتملة",
     "failed": "فشلت"
+  },
+  "actions": {
+    "newDownload": "تنزيل جديد",
+    "search": "بحث",
+    "pasteUrlOrDrop": "ألصق رابطًا أو أفلت ملفًا للإضافة",
+    "pause": "إيقاف مؤقت",
+    "resume": "استئناف",
+    "remove": "إزالة",
+    "openFolder": "فتح المجلد",
+    "more": "المزيد",
+    "settings": "الإعدادات"
+  },
+  "sidebar": {
+    "sessionSpeed": "سرعة الجلسة"
+  },
+  "queue": {
+    "columns": {
+      "name": "الاسم",
+      "size": "الحجم",
+      "speed": "السرعة",
+      "eta": "الوقت المتبقي",
+      "progress": "التقدم"
+    },
+    "empty": "لا توجد تنزيلات بعد",
+    "footer": {
+      "items": "{{count}} عنصرًا · {{total}}",
+      "updated": "تم التحديث الآن"
+    }
+  },
+  "status": {
+    "downloading": "قيد التنزيل",
+    "paused": "متوقف",
+    "queued": "في الطابور",
+    "complete": "مكتمل",
+    "failed": "فشل"
   }
 }

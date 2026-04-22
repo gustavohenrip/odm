@@ -9,5 +9,40 @@
     "scheduled": "Scheduled",
     "completed": "Completed",
     "failed": "Failed"
+  },
+  "actions": {
+    "newDownload": "New download",
+    "search": "Search",
+    "pasteUrlOrDrop": "Paste a URL or drop a file to add",
+    "pause": "Pause",
+    "resume": "Resume",
+    "remove": "Remove",
+    "openFolder": "Open folder",
+    "more": "More",
+    "settings": "Settings"
+  },
+  "sidebar": {
+    "sessionSpeed": "Session speed"
+  },
+  "queue": {
+    "columns": {
+      "name": "Name",
+      "size": "Size",
+      "speed": "Speed",
+      "eta": "ETA",
+      "progress": "Progress"
+    },
+    "empty": "No downloads yet",
+    "footer": {
+      "items": "{{count}} items · {{total}}",
+      "updated": "Updated just now"
+    }
+  },
+  "status": {
+    "downloading": "downloading",
+    "paused": "paused",
+    "queued": "in queue",
+    "complete": "complete",
+    "failed": "failed"
   }
 }
