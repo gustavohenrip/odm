@@ -9,7 +9,7 @@ export const routes: Routes = [
       { path: 'queue', loadComponent: () => import('./pages/queue/queue.component').then((m) => m.QueueComponent) },
       { path: 'completed', loadComponent: () => import('./pages/queue/queue.component').then((m) => m.QueueComponent) },
       { path: 'scheduled', loadComponent: () => import('./pages/queue/queue.component').then((m) => m.QueueComponent) },
-      { path: 'settings', loadComponent: () => import('./pages/queue/queue.component').then((m) => m.QueueComponent) },
+      { path: 'settings', loadComponent: () => import('./pages/settings/settings.component').then((m) => m.SettingsComponent) },
     ],
   },
   { path: '**', redirectTo: '' },
