@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.azrael.adm.download.ProgressBus;
+import com.azrael.adm.download.queue.RateLimiter;
 
 public final class MultiSegmentDownloader {
 
@@ -26,10 +27,11 @@ public final class MultiSegmentDownloader {
     private final long totalSize;
     private final int segmentCount;
     private final ProgressBus progressBus;
+    private final RateLimiter rateLimiter;
     private final AtomicBoolean stopFlag = new AtomicBoolean(false);
 
     public MultiSegmentDownloader(String id, HttpClient client, URI uri, Path target,
-                                  long totalSize, int segmentCount, ProgressBus bus) {
+                                  long totalSize, int segmentCount, ProgressBus bus, RateLimiter limiter) {
         this.id = id;
         this.client = client;
         this.uri = uri;
@@ -37,6 +39,7 @@ public final class MultiSegmentDownloader {
         this.totalSize = totalSize;
         this.segmentCount = Math.max(1, Math.min(32, segmentCount));
         this.progressBus = bus;
+        this.rateLimiter = limiter;
     }
 
     public void stop() { stopFlag.set(true); }
@@ -52,7 +55,7 @@ public final class MultiSegmentDownloader {
         ExecutorService pool = Executors.newFixedThreadPool(segmentCount);
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment seg : initial) {
-            RangeWorker worker = new RangeWorker(id, client, uri, target, manager, progressBus, stopFlag);
+            RangeWorker worker = new RangeWorker(id, client, uri, target, manager, progressBus, stopFlag, rateLimiter);
             CompletableFuture<Void> f = CompletableFuture.runAsync(() -> {
                 try {
                     worker.processAssigned(seg);

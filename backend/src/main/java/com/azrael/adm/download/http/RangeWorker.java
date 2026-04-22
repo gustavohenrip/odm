@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.azrael.adm.download.ProgressBus;
+import com.azrael.adm.download.queue.RateLimiter;
 
 public final class RangeWorker implements Runnable {
 
@@ -29,9 +30,11 @@ public final class RangeWorker implements Runnable {
     private final SegmentManager manager;
     private final ProgressBus progressBus;
     private final AtomicBoolean stopFlag;
+    private final RateLimiter rateLimiter;
 
     public RangeWorker(String downloadId, HttpClient client, URI uri, Path target,
-                       SegmentManager manager, ProgressBus progressBus, AtomicBoolean stopFlag) {
+                       SegmentManager manager, ProgressBus progressBus,
+                       AtomicBoolean stopFlag, RateLimiter rateLimiter) {
         this.downloadId = downloadId;
         this.client = client;
         this.uri = uri;
@@ -39,6 +42,7 @@ public final class RangeWorker implements Runnable {
         this.manager = manager;
         this.progressBus = progressBus;
         this.stopFlag = stopFlag;
+        this.rateLimiter = rateLimiter;
     }
 
     @Override
@@ -87,6 +91,7 @@ public final class RangeWorker implements Runnable {
             while (!stopFlag.get() && position <= seg.end() && (read = in.read(buf)) != -1) {
                 long remaining = seg.end() - position + 1;
                 int toWrite = (int) Math.min(read, remaining);
+                if (rateLimiter != null) rateLimiter.acquire(toWrite);
                 ch.write(ByteBuffer.wrap(buf, 0, toWrite), position);
                 position += toWrite;
                 seg.advance(toWrite);
