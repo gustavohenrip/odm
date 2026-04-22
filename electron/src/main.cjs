@@ -1,9 +1,13 @@
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('node:path');
 const { startBackend, stopBackend, getBackendInfo } = require('./backend-sidecar.cjs');
+const clipboardWatcher = require('./clipboard-watcher.cjs');
+const tray = require('./tray.cjs');
+const updater = require('./updater.cjs');
 
 const isDev = process.env.ADM_DEV === '1';
 let mainWindow = null;
+let quitting = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -33,9 +37,14 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '..', 'app', 'index.html'));
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  mainWindow.on('close', (e) => {
+    if (!quitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
   });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 app.whenReady().then(async () => {
@@ -50,17 +59,23 @@ app.whenReady().then(async () => {
   ipcMain.handle('adm:getBackendInfo', () => getBackendInfo());
 
   createWindow();
+  tray.build(mainWindow, () => { quitting = true; app.quit(); });
+
+  clipboardWatcher.start((url) => {
+    mainWindow?.webContents.send('adm:urlFromClipboard', url);
+  });
+
+  if (!isDev) updater.init(mainWindow);
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (!mainWindow) createWindow();
+    else { mainWindow.show(); mainWindow.focus(); }
   });
 });
 
-app.on('window-all-closed', () => {
-  stopBackend();
-  if (process.platform !== 'darwin') app.quit();
-});
-
 app.on('before-quit', () => {
+  quitting = true;
+  clipboardWatcher.stop();
+  tray.destroy();
   stopBackend();
 });
