@@ -71,6 +71,9 @@ jobs:
             codesign --verify --deep --strict --verbose=4 "dist/mac-arm64/ODM.app"
           fi
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "Automated release" || true
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "ODM desktop release." --latest || true
+          else
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "ODM desktop release." --latest
           fi
           find dist -maxdepth 1 -type f \( -name 'ODM-*' -o -name 'latest*.yml' \) -print0 | xargs -0 gh release upload "$RELEASE_TAG" --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
