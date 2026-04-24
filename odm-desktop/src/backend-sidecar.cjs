@@ -8,6 +8,7 @@ let backendPort = null;
 let backendToken = null;
 
 const READY_REGEX = /ODM_READY port=(\d+) token=([A-Za-z0-9_-]+)/;
+const pipeBackendLogs = process.env.ODM_BACKEND_LOGS === '1';
 
 function resolveJavaBin() {
   const javaName = process.platform === 'win32' ? 'java.exe' : 'java';
@@ -49,7 +50,7 @@ function startBackend() {
 
     backendProcess.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
-      process.stdout.write(`[backend] ${text}`);
+      if (pipeBackendLogs) process.stdout.write(`[backend] ${text.replace(READY_REGEX, 'ODM_READY port=$1 token=<hidden>')}`);
       const match = text.match(READY_REGEX);
       if (match && !backendPort) {
         backendPort = Number(match[1]);
@@ -66,11 +67,11 @@ function startBackend() {
 
     backendProcess.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8');
-      process.stderr.write(`[backend-err] ${text}`);
+      if (pipeBackendLogs) process.stderr.write(`[backend-err] ${text}`);
     });
 
     backendProcess.on('exit', (code) => {
-      console.log(`[ODM] backend exited with code ${code}`);
+      if (pipeBackendLogs) console.log(`[ODM] backend exited with code ${code}`);
       backendProcess = null;
       backendPort = null;
       backendToken = null;
