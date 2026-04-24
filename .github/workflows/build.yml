@@ -69,11 +69,6 @@ jobs:
           cp backend/build/libs/*.jar resources/backend/odm-backend.jar
           cp -R "$JAVA_HOME"/. resources/jdk/
           cp -R frontend/dist/frontend/browser/* odm-desktop/app/
-      - name: Install Linux packaging dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm
       - name: Electron package
         working-directory: odm-desktop
         shell: bash
@@ -106,7 +101,5 @@ jobs:
             odm-desktop/dist/*.dmg
             odm-desktop/dist/*.exe
             odm-desktop/dist/*.AppImage
-            odm-desktop/dist/*.deb
-            odm-desktop/dist/*.rpm
             odm-desktop/dist/*.blockmap
             odm-desktop/dist/latest*.yml
