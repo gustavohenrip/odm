@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        required: true
+        type: string
 
 jobs:
   release:
@@ -38,8 +43,9 @@ jobs:
       - name: Stage artifacts
         shell: bash
         run: |
-          mkdir -p resources/backend odm-desktop/app
+          mkdir -p resources/backend resources/jdk odm-desktop/app
           cp backend/build/libs/*.jar resources/backend/odm-backend.jar
+          cp -R "$JAVA_HOME"/. resources/jdk/
           cp -R frontend/dist/frontend/browser/* odm-desktop/app/
       - name: Install Linux packaging dependencies
         if: runner.os == 'Linux'
@@ -50,7 +56,26 @@ jobs:
         working-directory: odm-desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         shell: bash
         run: |
           npm install --no-audit --no-fund
-          npx electron-builder --publish always
+          if [[ "$RUNNER_OS" == "macOS" && -z "${CSC_LINK:-}" ]]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npx electron-builder --publish never -c.mac.identity=-
+          else
+            npx electron-builder --publish never
+          fi
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            codesign --verify --deep --strict --verbose=4 "dist/mac-arm64/ODM.app"
+          fi
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "Automated release" || true
+          fi
+          find dist -maxdepth 1 -type f \( -name 'ODM-*' -o -name 'latest*.yml' \) -print0 | xargs -0 gh release upload "$RELEASE_TAG" --clobber

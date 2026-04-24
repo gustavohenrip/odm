@@ -14,13 +14,13 @@ cd backend && ./gradlew bootRun
 cd frontend && npm install && npm start
 
 # 3. Electron (expects Angular at http://localhost:4200)
-cd electron && npm install && npm run dev
+cd odm-desktop && npm install && npm run dev
 ```
 
 Pass the backend port/token to Electron via env vars when running in dev:
 
 ```sh
-ADM_BACKEND_PORT=12345 ADM_BACKEND_TOKEN=... npm run dev
+ODM_BACKEND_PORT=12345 ODM_BACKEND_TOKEN=... npm run dev
 ```
 
 ## Production

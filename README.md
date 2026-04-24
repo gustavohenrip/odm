@@ -15,7 +15,7 @@ You want IDM style speed on HTTP and FDM style torrents, without running two pro
 
 ## Download
 
-Grab the installer for your platform from the [Releases page](https://github.com/gustavohenrip/odm/releases/latest).
+Grab the installer for your platform from the Releases page.
 
 - macOS, Apple Silicon, dmg
 - Windows x64, nsis installer

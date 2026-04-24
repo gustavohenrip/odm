@@ -1,5 +1,6 @@
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const fs = require('node:fs');
 const { app } = require('electron');
 
 let backendProcess = null;
@@ -12,7 +13,6 @@ function resolveJavaBin() {
   const javaName = process.platform === 'win32' ? 'java.exe' : 'java';
   if (process.resourcesPath) {
     const bundled = path.join(process.resourcesPath, 'jdk', 'bin', javaName);
-    const fs = require('node:fs');
     if (fs.existsSync(bundled)) return bundled;
   }
   return javaName;
@@ -30,11 +30,6 @@ function startBackend() {
     const javaBin = resolveJavaBin();
     const jar = resolveBackendJar();
     const userHome = app.getPath('home');
-
-    const fs = require('node:fs');
-    fs.writeFileSync('/tmp/odm-sidecar-debug.txt',
-      `javaBin=${javaBin}\njar=${jar}\nhome=${userHome}\nPATH=${process.env.PATH}\n`
-    );
 
     backendProcess = spawn(javaBin, [
       '-Xms128m',
@@ -54,7 +49,6 @@ function startBackend() {
 
     backendProcess.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
-      fs.appendFileSync('/tmp/odm-sidecar-debug.txt', `stdout: ${text}`);
       process.stdout.write(`[backend] ${text}`);
       const match = text.match(READY_REGEX);
       if (match && !backendPort) {
@@ -66,19 +60,16 @@ function startBackend() {
     });
 
     backendProcess.on('error', (err) => {
-      fs.appendFileSync('/tmp/odm-sidecar-debug.txt', `spawn-error: ${err.message}\n`);
       clearTimeout(timeout);
       reject(err);
     });
 
     backendProcess.stderr.on('data', (chunk) => {
       const text = chunk.toString('utf8');
-      fs.appendFileSync('/tmp/odm-sidecar-debug.txt', `stderr: ${text}`);
       process.stderr.write(`[backend-err] ${text}`);
     });
 
     backendProcess.on('exit', (code) => {
-      fs.appendFileSync('/tmp/odm-sidecar-debug.txt', `exit: ${code}\n`);
       console.log(`[ODM] backend exited with code ${code}`);
       backendProcess = null;
       backendPort = null;
