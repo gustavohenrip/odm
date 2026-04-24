@@ -10,6 +10,7 @@
   },
   "actions": {
     "newDownload": "Nouveau téléchargement",
+    "add": "Ajouter",
     "search": "Rechercher",
     "pasteUrlOrDrop": "Collez une URL ou déposez un fichier",
     "pause": "Suspendre",
@@ -29,6 +30,7 @@
       "progress": "Progression"
     },
     "empty": "Aucun téléchargement pour l'instant",
+    "addError": "Impossible d'ajouter ce téléchargement.",
     "footer": {
       "items": "{{count}} éléments · {{total}}",
       "updated": "Mis à jour à l'instant"

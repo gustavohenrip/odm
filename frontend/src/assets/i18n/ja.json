@@ -10,6 +10,7 @@
   },
   "actions": {
     "newDownload": "新しいダウンロード",
+    "add": "追加",
     "search": "検索",
     "pasteUrlOrDrop": "URL を貼り付けるかファイルをドロップ",
     "pause": "一時停止",
@@ -29,6 +30,7 @@
       "progress": "進行状況"
     },
     "empty": "まだダウンロードはありません",
+    "addError": "このダウンロードを追加できませんでした。",
     "footer": {
       "items": "{{count}} 件 · {{total}}",
       "updated": "たった今更新"

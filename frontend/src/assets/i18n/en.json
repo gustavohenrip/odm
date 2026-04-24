@@ -10,6 +10,7 @@
   },
   "actions": {
     "newDownload": "New download",
+    "add": "Add",
     "search": "Search",
     "pasteUrlOrDrop": "Paste a URL or drop a file to add",
     "pause": "Pause",
@@ -29,6 +30,7 @@
       "progress": "Progress"
     },
     "empty": "No downloads yet",
+    "addError": "Could not add this download.",
     "footer": {
       "items": "{{count}} items · {{total}}",
       "updated": "Updated just now"

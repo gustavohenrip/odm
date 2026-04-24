@@ -20,7 +20,6 @@ import jakarta.annotation.PreDestroy;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.azrael.adm.download.http.HttpClientBuilder;
 import com.azrael.adm.download.http.HttpDownloadJob;
@@ -49,6 +48,7 @@ public class DownloadService {
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, HttpDownloadJob> active = new ConcurrentHashMap<>();
+    private final Object writeLock = new Object();
 
     public DownloadService(DownloadRepository repo, FileCategorizer categorizer, UrlGuard urlGuard,
                            ProgressBus progressBus, DownloadProperties props, CredentialVault vault,
@@ -69,12 +69,12 @@ public class DownloadService {
             if (d.getSizeBytes() > 0 && d.getDownloadedBytes() >= d.getSizeBytes() && d.getStatus() != DownloadStatus.COMPLETE) {
                 d.setStatus(DownloadStatus.COMPLETE);
                 if (d.getCompletedAt() == null) d.setCompletedAt(Instant.now());
-                repo.save(d);
+                save(d);
             }
         });
         repo.findByStatus(DownloadStatus.DOWNLOADING).forEach(d -> {
             d.setStatus(DownloadStatus.PAUSED);
-            repo.save(d);
+            save(d);
         });
         monitor.scheduleAtFixedRate(this::flushProgress, 250, 500, TimeUnit.MILLISECONDS);
     }
@@ -92,7 +92,6 @@ public class DownloadService {
                 .toList();
     }
 
-    @Transactional
     public DownloadView create(DownloadCreateRequest req) throws Exception {
         if (req == null || req.url() == null || req.url().isBlank()) {
             throw new IllegalArgumentException("url is required");
@@ -124,12 +123,11 @@ public class DownloadService {
         e.setSegments(segments);
         e.setCreatedAt(Instant.now());
         e.setEncryptedCredentials(encryptCredentials(req));
-        repo.saveAndFlush(e);
+        save(e);
         resume(id);
         return view(id);
     }
 
-    @Transactional
     public DownloadView pause(String id) {
         HttpDownloadJob job = active.remove(id);
         if (job != null) job.stop();
@@ -137,31 +135,29 @@ public class DownloadService {
         if (e.getStatus() == DownloadStatus.DOWNLOADING || e.getStatus() == DownloadStatus.QUEUED) {
             e.setDownloadedBytes(progressBus.downloaded(id));
             e.setStatus(DownloadStatus.PAUSED);
-            repo.save(e);
+            save(e);
             publish(e);
         }
         return DownloadView.from(e, 0L);
     }
 
-    @Transactional
     public DownloadView resume(String id) throws Exception {
         DownloadEntity e = find(id);
         if (e.getStatus() == DownloadStatus.COMPLETE) return DownloadView.from(e, 0L);
         if (active.containsKey(id)) return DownloadView.from(e, progressBus.speedBps(id));
         e.setStatus(DownloadStatus.QUEUED);
         e.setErrorMessage(null);
-        repo.saveAndFlush(e);
+        save(e);
         publish(e);
         startJob(e);
         return DownloadView.from(e, progressBus.speedBps(id));
     }
 
-    @Transactional
     public void remove(String id, boolean deleteFiles) throws Exception {
         HttpDownloadJob job = active.remove(id);
         if (job != null) job.stop();
         DownloadEntity e = find(id);
-        repo.deleteById(id);
+        delete(id);
         progressBus.reset(id);
         if (deleteFiles) Files.deleteIfExists(targetPath(e));
     }
@@ -211,7 +207,7 @@ public class DownloadService {
             for (String id : active.keySet()) {
                 repo.findById(id).ifPresent(e -> {
                     e.setDownloadedBytes(Math.max(e.getDownloadedBytes(), progressBus.downloaded(id)));
-                    repo.save(e);
+                    save(e);
                     publish(e);
                 });
             }
@@ -223,7 +219,7 @@ public class DownloadService {
         repo.findById(id).ifPresent(e -> {
             e.setStatus(status);
             e.setErrorMessage(error);
-            repo.save(e);
+            save(e);
             publish(e);
         });
     }
@@ -235,9 +231,21 @@ public class DownloadService {
             e.setDownloadedBytes(size > 0 ? Math.min(size, downloaded) : downloaded);
             e.setStatus(DownloadStatus.COMPLETE);
             e.setCompletedAt(Instant.now());
-            repo.save(e);
+            save(e);
             publish(e);
         });
+    }
+
+    private DownloadEntity save(DownloadEntity e) {
+        synchronized (writeLock) {
+            return repo.saveAndFlush(e);
+        }
+    }
+
+    private void delete(String id) {
+        synchronized (writeLock) {
+            repo.deleteById(id);
+        }
     }
 
     private void publish(DownloadEntity e) {

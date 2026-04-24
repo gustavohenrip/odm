@@ -204,6 +204,21 @@ interface SettingsState {
       min-height: 18px;
     }
     .save-state.err { color: var(--text); }
+    @media (max-width: 760px) {
+      .page {
+        padding: 18px;
+      }
+      section {
+        padding: 14px;
+      }
+      .row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .unit {
+        display: none;
+      }
+    }
   `],
 })
 export class SettingsComponent implements OnInit {

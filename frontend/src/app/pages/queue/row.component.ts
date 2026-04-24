@@ -30,9 +30,9 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
         </div>
       </div>
 
-      <div class="cell mono dim">{{ size }}</div>
-      <div class="cell mono" [class.dim]="d.speedBps <= 0" [class.bold]="d.speedBps > 0">{{ speed }}</div>
-      <div class="cell mono dim">{{ eta }}</div>
+      <div class="cell mono dim size">{{ size }}</div>
+      <div class="cell mono speed" [class.dim]="d.speedBps <= 0" [class.bold]="d.speedBps > 0">{{ speed }}</div>
+      <div class="cell mono dim eta">{{ eta }}</div>
 
       <div class="cell progress">
         <app-progress [value]="d.progress" [status]="d.status"></app-progress>
@@ -55,7 +55,7 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
             <app-icon name="folder" [size]="13"></app-icon>
           </app-icon-btn>
         }
-        <app-icon-btn (click)="remove.emit(d.id)" ariaLabel="Remove">
+        <app-icon-btn (click)="remove.emit(d.id)" [ariaLabel]="'actions.remove' | translate">
           <app-icon name="trash" [size]="13"></app-icon>
         </app-icon-btn>
       </div>
@@ -120,6 +120,41 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
       gap: 4px;
       justify-content: flex-end;
     }
+    @media (max-width: 760px) {
+      .row {
+        grid-template-columns: 40px minmax(0, 1fr) 76px;
+        gap: 10px;
+        padding: 12px;
+      }
+      .tile {
+        grid-column: 1;
+        grid-row: 1 / 3;
+      }
+      .name {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .size {
+        grid-column: 3;
+        grid-row: 1;
+        text-align: right;
+      }
+      .speed {
+        grid-column: 2;
+        grid-row: 2;
+      }
+      .eta {
+        display: none;
+      }
+      .progress {
+        grid-column: 1 / 3;
+        grid-row: 3;
+      }
+      .actions {
+        grid-column: 3;
+        grid-row: 3;
+      }
+    }
   `],
 })
 export class QueueRowComponent {
@@ -131,7 +166,7 @@ export class QueueRowComponent {
   @Output() remove = new EventEmitter<string>();
 
   get size(): string { return formatBytes(this.d.sizeBytes); }
-  get speed(): string { return formatSpeed(this.d.speedBps); }
+  get speed(): string { return this.d.status === 'downloading' ? formatSpeed(this.d.speedBps) : '—'; }
   get eta(): string {
     if (this.d.status === 'paused' || this.d.status === 'queued') return '—';
     if (this.d.status === 'complete' || this.d.status === 'failed') return '—';

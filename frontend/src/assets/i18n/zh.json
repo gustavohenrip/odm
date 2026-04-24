@@ -10,6 +10,7 @@
   },
   "actions": {
     "newDownload": "新建下载",
+    "add": "添加",
     "search": "搜索",
     "pasteUrlOrDrop": "粘贴链接或拖入文件",
     "pause": "暂停",
@@ -29,6 +30,7 @@
       "progress": "进度"
     },
     "empty": "暂无下载",
+    "addError": "无法添加此下载。",
     "footer": {
       "items": "{{count}} 项 · {{total}}",
       "updated": "刚刚更新"

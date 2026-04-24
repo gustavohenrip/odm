@@ -43,12 +43,7 @@ export interface SidebarNavItem {
 
         <nav class="nav" aria-label="Downloads categories">
           @for (item of items; track item.key) {
-            <a
-              class="nav-item"
-              [routerLink]="item.path"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="{ exact: !!item.exact }"
-            >
+            <a class="nav-item" [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
               <span class="label">{{ item.labelKey | translate }}</span>
               <span class="count">{{ item.count }}</span>
             </a>
@@ -272,16 +267,54 @@ export interface SidebarNavItem {
       border-radius: 8px;
     }
     .user-settings:hover { background: var(--selection); color: var(--text); }
+    @media (max-width: 760px) {
+      :host {
+        height: auto;
+      }
+      .glass-wrap {
+        height: auto;
+      }
+      :host ::ng-deep .glass-wrap > .glass {
+        height: auto;
+      }
+      .inner {
+        height: auto;
+        padding: 14px;
+      }
+      .brand {
+        padding: 0 4px 12px;
+      }
+      .new-btn {
+        padding: 9px 12px;
+      }
+      .search {
+        margin-top: 8px;
+      }
+      .nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin-top: 12px;
+      }
+      .nav-item {
+        padding: 8px 10px;
+      }
+      .spacer-flex,
+      .session,
+      .user {
+        display: none;
+      }
+    }
   `],
 })
 export class SidebarComponent {
   @Input() items: SidebarNavItem[] = [
     { key: 'all', labelKey: 'nav.all', count: 0, path: '/queue' },
-    { key: 'active', labelKey: 'nav.active', count: 0, path: '/queue', exact: true },
-    { key: 'queued', labelKey: 'nav.queued', count: 0, path: '/queue' },
+    { key: 'active', labelKey: 'nav.active', count: 0, path: '/active' },
+    { key: 'queued', labelKey: 'nav.queued', count: 0, path: '/queued' },
     { key: 'scheduled', labelKey: 'nav.scheduled', count: 0, path: '/scheduled' },
     { key: 'completed', labelKey: 'nav.completed', count: 0, path: '/completed' },
-    { key: 'failed', labelKey: 'nav.failed', count: 0, path: '/queue' },
+    { key: 'failed', labelKey: 'nav.failed', count: 0, path: '/failed' },
   ];
   @Input() sessionSpeed: number | null = null;
   @Input() sessionCap = 80;

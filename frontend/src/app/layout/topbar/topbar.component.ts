@@ -132,6 +132,24 @@ import { ThemeService } from '../../core/theme/theme.service';
       background: var(--glass-hi);
       color: var(--text);
     }
+    @media (max-width: 760px) {
+      .inner {
+        flex-wrap: wrap;
+        padding: 12px;
+        gap: 8px;
+      }
+      .title-block {
+        width: 100%;
+      }
+      .url-paste {
+        order: 2;
+        min-width: 0;
+        width: 100%;
+      }
+      .theme-seg {
+        margin-left: auto;
+      }
+    }
   `],
 })
 export class TopbarComponent {

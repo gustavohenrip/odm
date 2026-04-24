@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 export type IconName =
   | 'plus'
@@ -57,10 +58,12 @@ const PATHS: Record<IconName, string> = {
   styles: [`:host { display: inline-flex; line-height: 0; }`],
 })
 export class IconComponent {
+  constructor(private readonly sanitizer: DomSanitizer) {}
+
   @Input({ required: true }) name!: IconName;
   @Input() size = 14;
 
-  get html() {
-    return PATHS[this.name] ?? '';
+  get html(): SafeHtml {
+    return this.sanitizer.bypassSecurityTrustHtml(PATHS[this.name] ?? '');
   }
 }

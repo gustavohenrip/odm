@@ -26,7 +26,8 @@ public record DownloadView(
         long size = Math.max(e.getSizeBytes(), 0L);
         double progress = size <= 0 ? 0.0 : Math.max(0.0, Math.min(1.0, (double) downloaded / (double) size));
         long remaining = Math.max(0L, size - downloaded);
-        long eta = speedBps > 0 ? remaining / speedBps : -1L;
+        long activeSpeed = e.getStatus() == DownloadStatus.DOWNLOADING ? Math.max(0L, speedBps) : 0L;
+        long eta = activeSpeed > 0 ? remaining / activeSpeed : -1L;
         return new DownloadView(
                 e.getId(),
                 e.getKind().name().toLowerCase(),
@@ -35,7 +36,7 @@ public record DownloadView(
                 size,
                 downloaded,
                 progress,
-                Math.max(0L, speedBps),
+                activeSpeed,
                 eta,
                 e.getStatus().name().toLowerCase(),
                 e.getSource(),

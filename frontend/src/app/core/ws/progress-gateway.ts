@@ -46,7 +46,11 @@ export class ProgressGateway {
         ...item,
         kind: String(item.kind ?? '').toLowerCase() as Download['kind'],
         status: String(item.status ?? '').toLowerCase() as Download['status'],
-      }));
+      })).map((item) => {
+        const progress = item.sizeBytes > 0 ? Math.max(0, Math.min(1, item.downloadedBytes / item.sizeBytes)) : 0;
+        const speedBps = item.status === 'downloading' ? item.speedBps : 0;
+        return { ...item, progress, speedBps };
+      });
       this.zone.run(() => this.updates.set(normalized));
     } catch {}
   }

@@ -1,13 +1,15 @@
-import { ChangeDetectionStrategy, Component, OnInit, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TranslateModule } from '@ngx-translate/core';
+import { NavigationEnd, Router } from '@angular/router';
+import { TranslateModule, TranslateService } from '@ngx-translate/core';
+import { filter } from 'rxjs';
 
 import { GlassComponent } from '../../shared/components/glass/glass.component';
 import { QueueRowComponent } from './row.component';
 import { Download } from '../../core/api/download.model';
 import { formatBytes } from '../../shared/format/format';
 import { DownloadsService } from '../../core/api/downloads.service';
-import { ProgressGateway } from '../../core/ws/progress-gateway';
+import { DownloadStore } from '../../core/api/download-store.service';
 
 @Component({
   selector: 'app-queue',
@@ -26,8 +28,11 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
             autocomplete="off"
             [disabled]="busy()"
           />
-          <button type="submit" [disabled]="busy() || !url.trim()">Add</button>
+          <button type="submit" [disabled]="busy() || !url.trim()">{{ 'actions.add' | translate }}</button>
         </form>
+        @if (error()) {
+          <div class="form-error" role="alert">{{ error() }}</div>
+        }
 
         <div class="header">
           <span></span>
@@ -40,7 +45,7 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
         </div>
 
         <div class="rows">
-          @for (d of downloads(); track d.id) {
+          @for (d of visibleDownloads(); track d.id) {
             <app-queue-row
               [d]="d"
               (pause)="onPause($event)"
@@ -54,7 +59,7 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
         </div>
 
         <div class="footer">
-          <span>{{ downloads().length }} items · {{ totalSize }}</span>
+          <span>{{ 'queue.footer.items' | translate: { count: visibleDownloads().length, total: totalSize } }}</span>
           <span>{{ 'queue.footer.updated' | translate }}</span>
         </div>
       </div>
@@ -69,6 +74,7 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
       display: flex;
       flex-direction: column;
       min-height: 0;
+      overflow: hidden;
     }
     .create {
       display: grid;
@@ -107,6 +113,13 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
       opacity: 0.45;
       cursor: not-allowed;
     }
+    .form-error {
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--hairline);
+      color: var(--text);
+      background: var(--selection);
+      font-size: 12px;
+    }
     .header {
       display: grid;
       grid-template-columns: 40px minmax(0,1.9fr) 90px 110px 90px minmax(0,1.1fr) 96px;
@@ -143,22 +156,43 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
       font-family: var(--font-mono);
       letter-spacing: 0.2px;
     }
+    @media (max-width: 760px) {
+      .create {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+      .create button {
+        width: 100%;
+      }
+      .header { display: none; }
+      .rows {
+        overflow: auto;
+      }
+      .footer {
+        gap: 12px;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
   `],
 })
 export class QueueComponent implements OnInit {
   private readonly downloadsService = inject(DownloadsService);
-  private readonly progressGateway = inject(ProgressGateway);
+  private readonly store = inject(DownloadStore);
+  private readonly router = inject(Router);
+  private readonly translate = inject(TranslateService);
 
-  readonly downloads = signal<Download[]>([]);
+  readonly downloads = this.store.downloads;
+  readonly scope = signal(this.scopeFromUrl(this.router.url));
+  readonly visibleDownloads = computed(() => this.downloads().filter((download) => this.matchesScope(download)));
   readonly busy = signal(false);
+  readonly error = signal('');
   url = '';
 
   constructor() {
-    effect(() => {
-      const updates = this.progressGateway.updates();
-      if (!updates.length) return;
-      this.mergeMany(updates);
-    }, { allowSignalWrites: true });
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => {
+      this.scope.set(this.scopeFromUrl(this.router.url));
+    });
   }
 
   ngOnInit(): void {
@@ -166,7 +200,7 @@ export class QueueComponent implements OnInit {
   }
 
   get totalSize(): string {
-    const total = this.downloads().reduce((acc, d) => acc + d.sizeBytes, 0);
+    const total = this.visibleDownloads().reduce((acc, d) => acc + d.sizeBytes, 0);
     return formatBytes(total);
   }
 
@@ -174,16 +208,23 @@ export class QueueComponent implements OnInit {
     const url = this.url.trim();
     if (!url) return;
     this.busy.set(true);
-    const request = url.toLowerCase().startsWith('magnet:')
-      ? this.downloadsService.addTorrent({ magnet: url })
-      : this.downloadsService.create({ url });
+    this.error.set('');
+    let request = this.downloadsService.create({ url });
+    if (url.toLowerCase().startsWith('magnet:')) {
+      request = this.downloadsService.addTorrent({ magnet: url });
+    } else if (this.isTorrentUrl(url)) {
+      request = this.downloadsService.addTorrent({ torrentUrl: url });
+    }
     request.subscribe({
       next: (download) => {
         this.url = '';
         this.mergeOne(download);
         this.busy.set(false);
       },
-      error: () => this.busy.set(false),
+      error: () => {
+        this.error.set(this.translate.instant('queue.addError'));
+        this.busy.set(false);
+      },
     });
   }
 
@@ -203,25 +244,34 @@ export class QueueComponent implements OnInit {
 
   onRemove(id: string): void {
     this.downloadsService.remove(id).subscribe(() => {
-      this.downloads.update((items) => items.filter((item) => item.id !== id));
+      this.store.removeLocal(id);
     });
   }
 
   private reload(): void {
-    this.downloadsService.list().subscribe((items) => this.downloads.set(items));
-  }
-
-  private mergeMany(updates: Download[]): void {
-    for (const update of updates) this.mergeOne(update);
+    this.store.load();
   }
 
   private mergeOne(update: Download): void {
-    this.downloads.update((items) => {
-      const index = items.findIndex((item) => item.id === update.id);
-      if (index < 0) return [update, ...items];
-      const next = [...items];
-      next[index] = { ...next[index], ...update };
-      return next;
-    });
+    this.store.mergeOne(update);
+  }
+
+  private matchesScope(download: Download): boolean {
+    const scope = this.scope();
+    if (scope === 'active') return download.status === 'downloading';
+    if (scope === 'queued') return download.status === 'queued' || download.status === 'paused';
+    if (scope === 'completed') return download.status === 'complete';
+    if (scope === 'failed') return download.status === 'failed';
+    if (scope === 'scheduled') return false;
+    return true;
+  }
+
+  private scopeFromUrl(url: string): string {
+    const path = url.split('?')[0].replace(/^\/+/, '');
+    return path || 'queue';
+  }
+
+  private isTorrentUrl(url: string): boolean {
+    return /^https?:\/\//i.test(url) && /\.torrent(?:[?#].*)?$/i.test(url);
   }
 }

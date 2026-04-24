@@ -29,6 +29,7 @@ export interface DownloadCreateRequest {
 
 export interface TorrentCreateRequest {
   magnet?: string;
+  torrentUrl?: string;
   torrentBase64?: string;
   folder?: string;
 }

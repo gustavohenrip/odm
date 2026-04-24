@@ -1,8 +1,16 @@
 package com.azrael.adm.download.torrent;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.UUID;
@@ -20,8 +28,10 @@ import com.azrael.adm.download.DownloadSnapshot;
 import com.azrael.adm.download.DownloadStatus;
 import com.azrael.adm.download.DownloadView;
 import com.azrael.adm.download.ProgressBus;
+import com.azrael.adm.download.http.HttpClientBuilder;
 import com.azrael.adm.persistence.DownloadEntity;
 import com.azrael.adm.persistence.DownloadRepository;
+import com.azrael.adm.security.UrlGuard;
 import com.azrael.adm.settings.RuntimeSettings;
 import com.frostwire.jlibtorrent.TorrentHandle;
 import com.frostwire.jlibtorrent.TorrentStatus;
@@ -29,17 +39,23 @@ import com.frostwire.jlibtorrent.TorrentStatus;
 @Service
 public class TorrentDownloadService {
 
+    private static final int MAX_TORRENT_BYTES = 25 * 1024 * 1024;
+
     private final TorrentSession torrents;
     private final DownloadRepository repo;
     private final ProgressBus progressBus;
     private final RuntimeSettings settings;
+    private final UrlGuard urlGuard;
     private final ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
+    private final Object writeLock = new Object();
 
-    public TorrentDownloadService(TorrentSession torrents, DownloadRepository repo, ProgressBus progressBus, RuntimeSettings settings) {
+    public TorrentDownloadService(TorrentSession torrents, DownloadRepository repo, ProgressBus progressBus,
+                                  RuntimeSettings settings, UrlGuard urlGuard) {
         this.torrents = torrents;
         this.repo = repo;
         this.progressBus = progressBus;
         this.settings = settings;
+        this.urlGuard = urlGuard;
     }
 
     @PostConstruct
@@ -63,13 +79,19 @@ public class TorrentDownloadService {
             url = req.magnet().trim();
             key = torrents.addMagnet(url, folder);
             name = "Magnet " + shortKey(key);
+        } else if (req != null && req.torrentUrl() != null && !req.torrentUrl().isBlank()) {
+            URI uri = urlGuard.parseOrReject(req.torrentUrl().trim());
+            byte[] bytes = downloadTorrentFile(uri);
+            key = torrents.addTorrentFile(bytes, folder);
+            url = uri.toString();
+            name = "Torrent " + shortKey(key);
         } else if (req != null && req.torrentBase64() != null && !req.torrentBase64().isBlank()) {
             byte[] bytes = Base64.getDecoder().decode(req.torrentBase64());
             key = torrents.addTorrentFile(bytes, folder);
             url = "torrent:" + key;
             name = "Torrent " + shortKey(key);
         } else {
-            throw new IllegalArgumentException("magnet or torrentBase64 required");
+            throw new IllegalArgumentException("magnet, torrentUrl or torrentBase64 required");
         }
 
         DownloadEntity e = new DownloadEntity();
@@ -87,7 +109,7 @@ public class TorrentDownloadService {
         e.setAcceptsRanges(false);
         e.setSegments(1);
         e.setCreatedAt(Instant.now());
-        repo.saveAndFlush(e);
+        save(e);
         publish(e, 0L, -1L);
         return DownloadView.from(e, 0L);
     }
@@ -96,7 +118,7 @@ public class TorrentDownloadService {
         DownloadEntity e = find(id);
         torrents.pause(e.getSource());
         e.setStatus(DownloadStatus.PAUSED);
-        repo.save(e);
+        save(e);
         publish(e, 0L, -1L);
         return DownloadView.from(e, 0L);
     }
@@ -105,7 +127,7 @@ public class TorrentDownloadService {
         DownloadEntity e = find(id);
         torrents.resume(e.getSource());
         e.setStatus(DownloadStatus.DOWNLOADING);
-        repo.save(e);
+        save(e);
         publish(e, 0L, -1L);
         return DownloadView.from(e, 0L);
     }
@@ -113,7 +135,7 @@ public class TorrentDownloadService {
     public void remove(String id, boolean deleteFiles) {
         DownloadEntity e = find(id);
         torrents.remove(e.getSource(), deleteFiles);
-        repo.deleteById(id);
+        delete(id);
         progressBus.reset(id);
     }
 
@@ -136,7 +158,7 @@ public class TorrentDownloadService {
                 } else if (e.getStatus() != DownloadStatus.PAUSED) {
                     e.setStatus(DownloadStatus.DOWNLOADING);
                 }
-                repo.save(e);
+                save(e);
                 long eta = speed > 0 ? Math.max(0L, total - done) / speed : -1L;
                 publish(e, speed, eta);
             }
@@ -168,6 +190,44 @@ public class TorrentDownloadService {
     private String shortKey(String key) {
         if (key == null || key.isBlank()) return "download";
         return key.length() <= 12 ? key : key.substring(0, 12);
+    }
+
+    private byte[] downloadTorrentFile(URI uri) throws Exception {
+        HttpClient client = HttpClientBuilder.build(settings.proxySettings(), null, null);
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .GET()
+                .timeout(Duration.ofMinutes(2))
+                .header("Accept", "application/x-bittorrent,*/*")
+                .build();
+        HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response.statusCode() / 100 != 2) {
+            throw new IOException("HTTP " + response.statusCode() + " on " + uri);
+        }
+        long length = response.headers().firstValueAsLong("content-length").orElse(-1L);
+        if (length > MAX_TORRENT_BYTES) throw new IOException("torrent file is too large");
+        try (InputStream in = response.body(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            int total = 0;
+            while ((read = in.read(buffer)) != -1) {
+                total += read;
+                if (total > MAX_TORRENT_BYTES) throw new IOException("torrent file is too large");
+                out.write(buffer, 0, read);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    private DownloadEntity save(DownloadEntity e) {
+        synchronized (writeLock) {
+            return repo.saveAndFlush(e);
+        }
+    }
+
+    private void delete(String id) {
+        synchronized (writeLock) {
+            repo.deleteById(id);
+        }
     }
 
     private void publish(DownloadEntity e, long speed, long eta) {
