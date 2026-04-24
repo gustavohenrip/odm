@@ -6,12 +6,15 @@ export function formatSize(gb: number): string {
 }
 
 export function formatBytes(bytes: number): string {
+  if (!isFinite(bytes) || bytes <= 0) return '—';
   return formatSize(bytes / (1024 * 1024 * 1024));
 }
 
-export function formatSpeed(mbps: number): string {
-  if (mbps <= 0) return '—';
-  return `${mbps.toFixed(1)} MB/s`;
+export function formatSpeed(bytesPerSecond: number): string {
+  if (!isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '—';
+  const mbps = bytesPerSecond / (1024 * 1024);
+  if (mbps >= 1) return `${mbps.toFixed(1)} MB/s`;
+  return `${(bytesPerSecond / 1024).toFixed(0)} KB/s`;
 }
 
 export function formatEta(seconds: number): string {

@@ -25,12 +25,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.azrael.adm.download.http.HttpClientBuilder;
 import com.azrael.adm.download.http.HttpDownloadJob;
 import com.azrael.adm.download.http.HttpProbe;
+import com.azrael.adm.download.queue.RateLimiter;
 import com.azrael.adm.download.queue.RetryPolicy;
 import com.azrael.adm.fs.FileCategorizer;
 import com.azrael.adm.persistence.DownloadEntity;
 import com.azrael.adm.persistence.DownloadRepository;
 import com.azrael.adm.security.CredentialVault;
 import com.azrael.adm.security.UrlGuard;
+import com.azrael.adm.settings.RuntimeSettings;
 
 @Service
 @EnableConfigurationProperties(DownloadProperties.class)
@@ -42,18 +44,23 @@ public class DownloadService {
     private final ProgressBus progressBus;
     private final DownloadProperties props;
     private final CredentialVault vault;
+    private final RuntimeSettings settings;
+    private final RateLimiter rateLimiter;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
     private final Map<String, HttpDownloadJob> active = new ConcurrentHashMap<>();
 
     public DownloadService(DownloadRepository repo, FileCategorizer categorizer, UrlGuard urlGuard,
-                           ProgressBus progressBus, DownloadProperties props, CredentialVault vault) {
+                           ProgressBus progressBus, DownloadProperties props, CredentialVault vault,
+                           RuntimeSettings settings, RateLimiter rateLimiter) {
         this.repo = repo;
         this.categorizer = categorizer;
         this.urlGuard = urlGuard;
         this.progressBus = progressBus;
         this.props = props;
         this.vault = vault;
+        this.settings = settings;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostConstruct
@@ -172,9 +179,9 @@ public class DownloadService {
             username = parts.length > 0 ? parts[0] : null;
             password = parts.length > 1 ? parts[1].toCharArray() : null;
         }
-        HttpClient client = HttpClientBuilder.build(null, username, password);
+        HttpClient client = HttpClientBuilder.build(settings.proxySettings(), username, password);
         HttpDownloadJob job = new HttpDownloadJob(e.getId(), client, URI.create(e.getUrl()), targetPath(e),
-                e.getSizeBytes(), e.isAcceptsRanges(), progressBus);
+                e.getSizeBytes(), e.isAcceptsRanges(), progressBus, rateLimiter);
         active.put(e.getId(), job);
         executor.submit(() -> runJob(e.getId(), job));
     }
@@ -246,7 +253,7 @@ public class DownloadService {
 
     private HttpClient clientFor(DownloadCreateRequest req) {
         char[] password = req.password() == null ? null : req.password().toCharArray();
-        return HttpClientBuilder.build(null, req.username(), password);
+        return HttpClientBuilder.build(settings.proxySettings(), req.username(), password);
     }
 
     private String encryptCredentials(DownloadCreateRequest req) throws Exception {
@@ -255,13 +262,20 @@ public class DownloadService {
     }
 
     private Path resolveRoot(String folder) throws Exception {
-        Path root = folder == null || folder.isBlank()
-                ? Paths.get(props.getRoot() == null || props.getRoot().isBlank()
-                        ? System.getProperty("user.home") + "/Downloads/ADM"
-                        : props.getRoot())
-                : Paths.get(folder);
+        String configured = props.getRoot() == null || props.getRoot().isBlank()
+                ? System.getProperty("user.home") + "/Downloads/ADM"
+                : props.getRoot();
+        Path root = pathFrom(folder == null || folder.isBlank() ? configured : folder);
         Files.createDirectories(root);
         return root.toRealPath();
+    }
+
+    private Path pathFrom(String value) {
+        if ("~".equals(value)) return Paths.get(System.getProperty("user.home"));
+        if (value.startsWith("~/") || value.startsWith("~\\")) {
+            return Paths.get(System.getProperty("user.home"), value.substring(2));
+        }
+        return Paths.get(value);
     }
 
     private Path targetPath(DownloadEntity e) {

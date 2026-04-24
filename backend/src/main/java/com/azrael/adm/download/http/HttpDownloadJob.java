@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.azrael.adm.download.ProgressBus;
+import com.azrael.adm.download.queue.RateLimiter;
 
 public final class HttpDownloadJob {
 
@@ -30,10 +31,11 @@ public final class HttpDownloadJob {
     private final long totalSize;
     private final boolean acceptsRanges;
     private final ProgressBus progressBus;
+    private final RateLimiter rateLimiter;
     private final AtomicBoolean stopFlag = new AtomicBoolean(false);
 
     public HttpDownloadJob(String id, HttpClient client, URI uri, Path target,
-                           long totalSize, boolean acceptsRanges, ProgressBus bus) {
+                           long totalSize, boolean acceptsRanges, ProgressBus bus, RateLimiter rateLimiter) {
         this.id = id;
         this.client = client;
         this.uri = uri;
@@ -41,6 +43,7 @@ public final class HttpDownloadJob {
         this.totalSize = totalSize;
         this.acceptsRanges = acceptsRanges;
         this.progressBus = bus;
+        this.rateLimiter = rateLimiter;
     }
 
     public void stop() {
@@ -77,11 +80,13 @@ public final class HttpDownloadJob {
         try (InputStream in = response.body();
              FileChannel channel = FileChannel.open(target,
                      StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ)) {
+            channel.truncate(existing);
             channel.position(existing);
             byte[] buf = new byte[BUFFER_SIZE];
             long written = existing;
             int read;
             while (!stopFlag.get() && (read = in.read(buf)) != -1) {
+                rateLimiter.acquire(read);
                 channel.write(ByteBuffer.wrap(buf, 0, read));
                 written += read;
                 progressBus.report(id, read);

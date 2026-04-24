@@ -22,6 +22,7 @@ import com.azrael.adm.download.DownloadView;
 import com.azrael.adm.download.ProgressBus;
 import com.azrael.adm.persistence.DownloadEntity;
 import com.azrael.adm.persistence.DownloadRepository;
+import com.azrael.adm.settings.RuntimeSettings;
 import com.frostwire.jlibtorrent.TorrentHandle;
 import com.frostwire.jlibtorrent.TorrentStatus;
 
@@ -31,12 +32,14 @@ public class TorrentDownloadService {
     private final TorrentSession torrents;
     private final DownloadRepository repo;
     private final ProgressBus progressBus;
+    private final RuntimeSettings settings;
     private final ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
 
-    public TorrentDownloadService(TorrentSession torrents, DownloadRepository repo, ProgressBus progressBus) {
+    public TorrentDownloadService(TorrentSession torrents, DownloadRepository repo, ProgressBus progressBus, RuntimeSettings settings) {
         this.torrents = torrents;
         this.repo = repo;
         this.progressBus = progressBus;
+        this.settings = settings;
     }
 
     @PostConstruct
@@ -146,11 +149,20 @@ public class TorrentDownloadService {
     }
 
     private Path resolveFolder(String folder) throws Exception {
+        String root = settings.get().getOrDefault("downloadRoot", System.getProperty("user.home") + "/Downloads/ADM");
         Path path = folder == null || folder.isBlank()
-                ? Paths.get(System.getProperty("user.home"), "Downloads", "ADM", "Torrents")
-                : Paths.get(folder);
+                ? pathFrom(root).resolve("Torrents")
+                : pathFrom(folder);
         Files.createDirectories(path);
         return path.toRealPath();
+    }
+
+    private Path pathFrom(String value) {
+        if ("~".equals(value)) return Paths.get(System.getProperty("user.home"));
+        if (value.startsWith("~/") || value.startsWith("~\\")) {
+            return Paths.get(System.getProperty("user.home"), value.substring(2));
+        }
+        return Paths.get(value);
     }
 
     private String shortKey(String key) {

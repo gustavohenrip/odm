@@ -7,6 +7,7 @@ export interface Download {
   name: string;
   ext: string;
   sizeBytes: number;
+  downloadedBytes: number;
   progress: number;
   speedBps: number;
   etaSeconds: number;
@@ -15,6 +16,7 @@ export interface Download {
   completedAt?: string;
   folder?: string;
   url?: string;
+  errorMessage?: string;
 }
 
 export interface DownloadCreateRequest {

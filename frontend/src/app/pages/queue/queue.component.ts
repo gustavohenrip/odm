@@ -45,7 +45,6 @@ import { ProgressGateway } from '../../core/ws/progress-gateway';
               [d]="d"
               (pause)="onPause($event)"
               (resume)="onResume($event)"
-              (more)="onMore($event)"
               (openFolder)="onOpenFolder($event)"
               (remove)="onRemove($event)"
             ></app-queue-row>
@@ -194,10 +193,6 @@ export class QueueComponent implements OnInit {
 
   onResume(id: string): void {
     this.downloadsService.resume(id).subscribe((download) => this.mergeOne(download));
-  }
-
-  onMore(id: string): void {
-    this.onRemove(id);
   }
 
   onOpenFolder(id: string): void {

@@ -26,7 +26,7 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
           @if (d.completedAt) { <span>·</span><span>{{ d.completedAt }}</span> }
           @if (d.status === 'paused') { <span>·</span><span>{{ 'status.paused' | translate }}</span> }
           @if (d.status === 'queued') { <span>·</span><span>{{ 'status.queued' | translate }}</span> }
-          @if (d.status === 'failed') { <span>·</span><span class="err">{{ 'status.failed' | translate }}</span> }
+          @if (d.status === 'failed') { <span>·</span><span class="err">{{ d.errorMessage || ('status.failed' | translate) }}</span> }
         </div>
       </div>
 
@@ -36,7 +36,7 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
 
       <div class="cell progress">
         <app-progress [value]="d.progress" [status]="d.status"></app-progress>
-        <span class="pct mono" [class.dim]="d.status === 'complete'">{{ pct }}%</span>
+        <span class="pct mono" [class.dim]="d.status === 'complete'">{{ pct }}</span>
       </div>
 
       <div class="cell actions">
@@ -55,9 +55,6 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
             <app-icon name="folder" [size]="13"></app-icon>
           </app-icon-btn>
         }
-        <app-icon-btn (click)="more.emit(d.id)" [ariaLabel]="'actions.more' | translate">
-          <app-icon name="more" [size]="13"></app-icon>
-        </app-icon-btn>
         <app-icon-btn (click)="remove.emit(d.id)" ariaLabel="Remove">
           <app-icon name="trash" [size]="13"></app-icon>
         </app-icon-btn>
@@ -130,17 +127,18 @@ export class QueueRowComponent {
 
   @Output() pause = new EventEmitter<string>();
   @Output() resume = new EventEmitter<string>();
-  @Output() more = new EventEmitter<string>();
   @Output() openFolder = new EventEmitter<string>();
   @Output() remove = new EventEmitter<string>();
 
   get size(): string { return formatBytes(this.d.sizeBytes); }
-  get speed(): string { return formatSpeed(this.d.speedBps / (1024 * 1024)); }
+  get speed(): string { return formatSpeed(this.d.speedBps); }
   get eta(): string {
-    if (this.d.status === 'paused') return 'paused';
-    if (this.d.status === 'queued') return 'queued';
+    if (this.d.status === 'paused' || this.d.status === 'queued') return '—';
     if (this.d.status === 'complete' || this.d.status === 'failed') return '—';
     return formatEta(this.d.etaSeconds);
   }
-  get pct(): number { return Math.round(Math.max(0, Math.min(1, this.d.progress)) * 100); }
+  get pct(): string {
+    if (this.d.sizeBytes <= 0) return '—';
+    return `${Math.round(Math.max(0, Math.min(1, this.d.progress)) * 100)}%`;
+  }
 }

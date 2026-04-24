@@ -46,7 +46,16 @@ public class TorrentSession {
     }
 
     @PostConstruct
-    public void start() {
+    public synchronized void start() {
+        startManager();
+    }
+
+    public synchronized void configure() {
+        stopManager();
+        startManager();
+    }
+
+    private void startManager() {
         if (!props.isEnabled()) {
             log.info("torrent disabled by config");
             return;
@@ -75,9 +84,14 @@ public class TorrentSession {
     }
 
     @PreDestroy
-    public void stop() {
+    public synchronized void stop() {
+        stopManager();
+    }
+
+    private void stopManager() {
         if (manager != null) {
             try { manager.stop(); } catch (Throwable ignored) { }
+            manager = null;
         }
     }
 
@@ -169,7 +183,7 @@ public class TorrentSession {
     }
 
     public boolean available() {
-        return manager != null;
+        return props.isEnabled() && manager != null;
     }
 
     public static String toBase64(byte[] bytes) {
