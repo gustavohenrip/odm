@@ -12,6 +12,7 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'link'
+  | 'trash'
   | 'arrow-down';
 
 const PATHS: Record<IconName, string> = {
@@ -35,6 +36,8 @@ const PATHS: Record<IconName, string> = {
     '<path d="M20 14.5A8 8 0 119.5 4a6.5 6.5 0 0010.5 10.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
   link:
     '<path d="M10 14a5 5 0 007.07 0l2.83-2.83a5 5 0 00-7.07-7.07L11 6M14 10a5 5 0 00-7.07 0L4.1 12.83a5 5 0 007.07 7.07L13 18" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  trash:
+    '<path d="M5 7h14M10 11v6M14 11v6M8 7l1-2h6l1 2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   'arrow-down':
     '<path d="M12 5v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
 };

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('adm', {
   getBackendInfo: () => ipcRenderer.invoke('adm:getBackendInfo'),
+  openFolder: (folderPath) => ipcRenderer.invoke('adm:openFolder', folderPath),
   onClipboardUrl: (handler) => {
     const listener = (_e, url) => handler(url);
     ipcRenderer.on('adm:urlFromClipboard', listener);

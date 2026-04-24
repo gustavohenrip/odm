@@ -18,12 +18,12 @@ export class DownloadsService {
     return this.http.post<Download>(`${this.base}/api/downloads`, req, { headers: this.headers });
   }
 
-  pause(id: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/api/downloads/${id}/pause`, null, { headers: this.headers });
+  pause(id: string): Observable<Download> {
+    return this.http.post<Download>(`${this.base}/api/downloads/${id}/pause`, null, { headers: this.headers });
   }
 
-  resume(id: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/api/downloads/${id}/resume`, null, { headers: this.headers });
+  resume(id: string): Observable<Download> {
+    return this.http.post<Download>(`${this.base}/api/downloads/${id}/resume`, null, { headers: this.headers });
   }
 
   remove(id: string, deleteFiles = false): Observable<void> {

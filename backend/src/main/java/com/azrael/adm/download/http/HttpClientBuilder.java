@@ -13,7 +13,7 @@ public final class HttpClientBuilder {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(Duration.ofSeconds(30))
                 .version(HttpClient.Version.HTTP_2)
-                .executor(Executors.newVirtualThreadPerTaskExecutor());
+                .executor(Executors.newCachedThreadPool());
 
         if (proxy != null && proxy.kind() != ProxySettings.Kind.NONE) {
             b.proxy(proxy.toSelector());

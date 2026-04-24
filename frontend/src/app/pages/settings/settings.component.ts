@@ -197,7 +197,5 @@ export class SettingsComponent {
     document.documentElement.setAttribute('dir', rtl ? 'rtl' : 'ltr');
   }
 
-  save() {
-    // wired to REST in future commit
-  }
+  save() {}
 }

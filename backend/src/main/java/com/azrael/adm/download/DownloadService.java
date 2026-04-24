@@ -1,0 +1,303 @@
+package com.azrael.adm.download;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.azrael.adm.download.http.HttpClientBuilder;
+import com.azrael.adm.download.http.HttpDownloadJob;
+import com.azrael.adm.download.http.HttpProbe;
+import com.azrael.adm.download.queue.RetryPolicy;
+import com.azrael.adm.fs.FileCategorizer;
+import com.azrael.adm.persistence.DownloadEntity;
+import com.azrael.adm.persistence.DownloadRepository;
+import com.azrael.adm.security.CredentialVault;
+import com.azrael.adm.security.UrlGuard;
+
+@Service
+@EnableConfigurationProperties(DownloadProperties.class)
+public class DownloadService {
+
+    private final DownloadRepository repo;
+    private final FileCategorizer categorizer;
+    private final UrlGuard urlGuard;
+    private final ProgressBus progressBus;
+    private final DownloadProperties props;
+    private final CredentialVault vault;
+    private final ExecutorService executor = Executors.newCachedThreadPool();
+    private final ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor();
+    private final Map<String, HttpDownloadJob> active = new ConcurrentHashMap<>();
+
+    public DownloadService(DownloadRepository repo, FileCategorizer categorizer, UrlGuard urlGuard,
+                           ProgressBus progressBus, DownloadProperties props, CredentialVault vault) {
+        this.repo = repo;
+        this.categorizer = categorizer;
+        this.urlGuard = urlGuard;
+        this.progressBus = progressBus;
+        this.props = props;
+        this.vault = vault;
+    }
+
+    @PostConstruct
+    public void start() {
+        repo.findAll().forEach(d -> {
+            if (d.getSizeBytes() > 0 && d.getDownloadedBytes() >= d.getSizeBytes() && d.getStatus() != DownloadStatus.COMPLETE) {
+                d.setStatus(DownloadStatus.COMPLETE);
+                if (d.getCompletedAt() == null) d.setCompletedAt(Instant.now());
+                repo.save(d);
+            }
+        });
+        repo.findByStatus(DownloadStatus.DOWNLOADING).forEach(d -> {
+            d.setStatus(DownloadStatus.PAUSED);
+            repo.save(d);
+        });
+        monitor.scheduleAtFixedRate(this::flushProgress, 250, 500, TimeUnit.MILLISECONDS);
+    }
+
+    @PreDestroy
+    public void stop() {
+        active.values().forEach(HttpDownloadJob::stop);
+        executor.shutdownNow();
+        monitor.shutdownNow();
+    }
+
+    public List<DownloadView> list() {
+        return repo.findAllByOrderByCreatedAtDesc().stream()
+                .map(d -> DownloadView.from(d, progressBus.speedBps(d.getId())))
+                .toList();
+    }
+
+    @Transactional
+    public DownloadView create(DownloadCreateRequest req) throws Exception {
+        if (req == null || req.url() == null || req.url().isBlank()) {
+            throw new IllegalArgumentException("url is required");
+        }
+        URI uri = urlGuard.parseOrReject(req.url().trim());
+        HttpClient client = clientFor(req);
+        HttpProbe.Info info = HttpProbe.probe(client, uri);
+        String id = UUID.randomUUID().toString();
+        String filename = sanitizeFilename(info.filename());
+        Path root = resolveRoot(req.folder());
+        Path target = categorizer.resolve(root, filename).normalize();
+        ensureInside(root, target);
+        Files.createDirectories(target.getParent());
+        int segments = normalizeSegments(req.segments(), info.acceptsRanges());
+
+        DownloadEntity e = new DownloadEntity();
+        e.setId(id);
+        e.setKind(DownloadKind.HTTP);
+        e.setName(filename);
+        e.setExt(categorizer.extOf(filename));
+        e.setUrl(info.finalUrl());
+        e.setSource(hostLabel(uri));
+        e.setSizeBytes(Math.max(0L, info.contentLength()));
+        e.setDownloadedBytes(existingSize(target));
+        e.setStatus(DownloadStatus.QUEUED);
+        e.setFolder(target.getParent().toString());
+        e.setFilename(filename);
+        e.setAcceptsRanges(info.acceptsRanges());
+        e.setSegments(segments);
+        e.setCreatedAt(Instant.now());
+        e.setEncryptedCredentials(encryptCredentials(req));
+        repo.saveAndFlush(e);
+        resume(id);
+        return view(id);
+    }
+
+    @Transactional
+    public DownloadView pause(String id) {
+        HttpDownloadJob job = active.remove(id);
+        if (job != null) job.stop();
+        DownloadEntity e = find(id);
+        if (e.getStatus() == DownloadStatus.DOWNLOADING || e.getStatus() == DownloadStatus.QUEUED) {
+            e.setDownloadedBytes(progressBus.downloaded(id));
+            e.setStatus(DownloadStatus.PAUSED);
+            repo.save(e);
+            publish(e);
+        }
+        return DownloadView.from(e, 0L);
+    }
+
+    @Transactional
+    public DownloadView resume(String id) throws Exception {
+        DownloadEntity e = find(id);
+        if (e.getStatus() == DownloadStatus.COMPLETE) return DownloadView.from(e, 0L);
+        if (active.containsKey(id)) return DownloadView.from(e, progressBus.speedBps(id));
+        e.setStatus(DownloadStatus.QUEUED);
+        e.setErrorMessage(null);
+        repo.saveAndFlush(e);
+        publish(e);
+        startJob(e);
+        return DownloadView.from(e, progressBus.speedBps(id));
+    }
+
+    @Transactional
+    public void remove(String id, boolean deleteFiles) throws Exception {
+        HttpDownloadJob job = active.remove(id);
+        if (job != null) job.stop();
+        DownloadEntity e = find(id);
+        repo.deleteById(id);
+        progressBus.reset(id);
+        if (deleteFiles) Files.deleteIfExists(targetPath(e));
+    }
+
+    public DownloadView view(String id) {
+        DownloadEntity e = find(id);
+        return DownloadView.from(e, progressBus.speedBps(id));
+    }
+
+    private void startJob(DownloadEntity e) throws Exception {
+        char[] password = null;
+        String username = null;
+        if (e.getEncryptedCredentials() != null && !e.getEncryptedCredentials().isBlank()) {
+            String[] parts = vault.decrypt(e.getEncryptedCredentials()).split("\n", 2);
+            username = parts.length > 0 ? parts[0] : null;
+            password = parts.length > 1 ? parts[1].toCharArray() : null;
+        }
+        HttpClient client = HttpClientBuilder.build(null, username, password);
+        HttpDownloadJob job = new HttpDownloadJob(e.getId(), client, URI.create(e.getUrl()), targetPath(e),
+                e.getSizeBytes(), e.isAcceptsRanges(), progressBus);
+        active.put(e.getId(), job);
+        executor.submit(() -> runJob(e.getId(), job));
+    }
+
+    private void runJob(String id, HttpDownloadJob job) {
+        try {
+            markStatus(id, DownloadStatus.DOWNLOADING, null);
+            RetryPolicy retry = new RetryPolicy(props.getRetry().getMaxAttempts(),
+                    props.getRetry().getInitialDelayMs(), props.getRetry().getMaxDelayMs());
+            retry.execute(() -> {
+                job.run();
+                return null;
+            });
+            if (active.remove(id, job)) markComplete(id);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            active.remove(id, job);
+            markStatus(id, DownloadStatus.PAUSED, null);
+        } catch (Exception e) {
+            active.remove(id, job);
+            markStatus(id, DownloadStatus.FAILED, e.getMessage());
+        }
+    }
+
+    private void flushProgress() {
+        try {
+            for (String id : active.keySet()) {
+                repo.findById(id).ifPresent(e -> {
+                    e.setDownloadedBytes(Math.max(e.getDownloadedBytes(), progressBus.downloaded(id)));
+                    repo.save(e);
+                    publish(e);
+                });
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void markStatus(String id, DownloadStatus status, String error) {
+        repo.findById(id).ifPresent(e -> {
+            e.setStatus(status);
+            e.setErrorMessage(error);
+            repo.save(e);
+            publish(e);
+        });
+    }
+
+    private void markComplete(String id) {
+        repo.findById(id).ifPresent(e -> {
+            long size = e.getSizeBytes();
+            long downloaded = Math.max(progressBus.downloaded(id), existingSize(targetPath(e)));
+            e.setDownloadedBytes(size > 0 ? Math.min(size, downloaded) : downloaded);
+            e.setStatus(DownloadStatus.COMPLETE);
+            e.setCompletedAt(Instant.now());
+            repo.save(e);
+            publish(e);
+        });
+    }
+
+    private void publish(DownloadEntity e) {
+        DownloadView v = DownloadView.from(e, progressBus.speedBps(e.getId()));
+        progressBus.publish(new DownloadSnapshot(e.getId(), e.getKind(), e.getName(), e.getExt(), e.getUrl(),
+                e.getSource(), e.getSizeBytes(), v.downloadedBytes(), v.speedBps(), v.etaSeconds(), e.getStatus(),
+                e.getFolder(), e.getCreatedAt(), e.getCompletedAt(), e.getErrorMessage()));
+    }
+
+    private DownloadEntity find(String id) {
+        return repo.findById(id).orElseThrow(() -> new IllegalArgumentException("download not found: " + id));
+    }
+
+    private HttpClient clientFor(DownloadCreateRequest req) {
+        char[] password = req.password() == null ? null : req.password().toCharArray();
+        return HttpClientBuilder.build(null, req.username(), password);
+    }
+
+    private String encryptCredentials(DownloadCreateRequest req) throws Exception {
+        if (req.username() == null || req.username().isBlank() || req.password() == null) return null;
+        return vault.encrypt(req.username() + "\n" + req.password());
+    }
+
+    private Path resolveRoot(String folder) throws Exception {
+        Path root = folder == null || folder.isBlank()
+                ? Paths.get(props.getRoot() == null || props.getRoot().isBlank()
+                        ? System.getProperty("user.home") + "/Downloads/ADM"
+                        : props.getRoot())
+                : Paths.get(folder);
+        Files.createDirectories(root);
+        return root.toRealPath();
+    }
+
+    private Path targetPath(DownloadEntity e) {
+        return Paths.get(e.getFolder()).resolve(e.getFilename()).normalize();
+    }
+
+    private void ensureInside(Path root, Path target) {
+        if (!target.toAbsolutePath().normalize().startsWith(root.toAbsolutePath().normalize())) {
+            throw new IllegalArgumentException("target path is outside download folder");
+        }
+    }
+
+    private int normalizeSegments(Integer requested, boolean acceptsRanges) {
+        if (!acceptsRanges) return 1;
+        int value = requested == null ? props.getDefaultSegments() : requested;
+        return Math.max(1, Math.min(Math.max(1, props.getMaxSegments()), value));
+    }
+
+    private long existingSize(Path path) {
+        try {
+            return Files.exists(path) ? Files.size(path) : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private String sanitizeFilename(String filename) {
+        String value = filename == null || filename.isBlank() ? "download.bin" : filename.trim();
+        value = value.replace('\\', '_').replace('/', '_').replace(':', '_');
+        value = value.replaceAll("[\\x00-\\x1F\\x7F]", "_");
+        if (value.equals(".") || value.equals("..")) return "download.bin";
+        return value.length() > 180 ? value.substring(0, 180) : value;
+    }
+
+    private String hostLabel(URI uri) {
+        String host = uri.getHost();
+        return host == null || host.isBlank() ? uri.toString() : host;
+    }
+}

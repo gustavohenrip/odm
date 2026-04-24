@@ -1,20 +1,34 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, effect, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 
 import { GlassComponent } from '../../shared/components/glass/glass.component';
 import { QueueRowComponent } from './row.component';
 import { Download } from '../../core/api/download.model';
 import { formatBytes } from '../../shared/format/format';
+import { DownloadsService } from '../../core/api/downloads.service';
+import { ProgressGateway } from '../../core/ws/progress-gateway';
 
 @Component({
   selector: 'app-queue',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe, TranslateModule, GlassComponent, QueueRowComponent],
+  imports: [FormsModule, TranslateModule, GlassComponent, QueueRowComponent],
   template: `
     <app-glass class="wrap" [radius]="18">
       <div class="panel">
+        <form class="create" (ngSubmit)="addUrl()">
+          <input
+            type="url"
+            name="url"
+            [(ngModel)]="url"
+            placeholder="https://example.com/file.zip"
+            autocomplete="off"
+            [disabled]="busy()"
+          />
+          <button type="submit" [disabled]="busy() || !url.trim()">Add</button>
+        </form>
+
         <div class="header">
           <span></span>
           <span>{{ 'queue.columns.name' | translate }}</span>
@@ -33,6 +47,7 @@ import { formatBytes } from '../../shared/format/format';
               (resume)="onResume($event)"
               (more)="onMore($event)"
               (openFolder)="onOpenFolder($event)"
+              (remove)="onRemove($event)"
             ></app-queue-row>
           } @empty {
             <div class="empty">{{ 'queue.empty' | translate }}</div>
@@ -55,6 +70,43 @@ import { formatBytes } from '../../shared/format/format';
       display: flex;
       flex-direction: column;
       min-height: 0;
+    }
+    .create {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .create input {
+      min-width: 0;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--chip-border);
+      background: var(--chip);
+      color: var(--text);
+      padding: 0 12px;
+      font: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+    .create input:focus {
+      border-color: var(--glass-border-2);
+      background: var(--glass-hi);
+    }
+    .create button {
+      height: 36px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 16px;
+      background: var(--text);
+      color: var(--text-inverse);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .create button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .header {
       display: grid;
@@ -94,16 +146,84 @@ import { formatBytes } from '../../shared/format/format';
     }
   `],
 })
-export class QueueComponent {
+export class QueueComponent implements OnInit {
+  private readonly downloadsService = inject(DownloadsService);
+  private readonly progressGateway = inject(ProgressGateway);
+
   readonly downloads = signal<Download[]>([]);
+  readonly busy = signal(false);
+  url = '';
+
+  constructor() {
+    effect(() => {
+      const updates = this.progressGateway.updates();
+      if (!updates.length) return;
+      this.mergeMany(updates);
+    }, { allowSignalWrites: true });
+  }
+
+  ngOnInit(): void {
+    this.reload();
+  }
 
   get totalSize(): string {
     const total = this.downloads().reduce((acc, d) => acc + d.sizeBytes, 0);
     return formatBytes(total);
   }
 
-  onPause(id: string) { /* wired in commit 11 */ }
-  onResume(id: string) { /* wired in commit 11 */ }
-  onMore(id: string) { /* wired in commit 11 */ }
-  onOpenFolder(id: string) { /* wired in commit 11 */ }
+  addUrl(): void {
+    const url = this.url.trim();
+    if (!url) return;
+    this.busy.set(true);
+    this.downloadsService.create({ url }).subscribe({
+      next: (download) => {
+        this.url = '';
+        this.mergeOne(download);
+        this.busy.set(false);
+      },
+      error: () => this.busy.set(false),
+    });
+  }
+
+  onPause(id: string): void {
+    this.downloadsService.pause(id).subscribe((download) => this.mergeOne(download));
+  }
+
+  onResume(id: string): void {
+    this.downloadsService.resume(id).subscribe((download) => this.mergeOne(download));
+  }
+
+  onMore(id: string): void {
+    this.onRemove(id);
+  }
+
+  onOpenFolder(id: string): void {
+    const download = this.downloads().find((d) => d.id === id);
+    const adm = (globalThis as unknown as { adm?: { openFolder?: (path: string) => Promise<void> } }).adm;
+    if (download?.folder && adm?.openFolder) adm.openFolder(download.folder);
+  }
+
+  onRemove(id: string): void {
+    this.downloadsService.remove(id).subscribe(() => {
+      this.downloads.update((items) => items.filter((item) => item.id !== id));
+    });
+  }
+
+  private reload(): void {
+    this.downloadsService.list().subscribe((items) => this.downloads.set(items));
+  }
+
+  private mergeMany(updates: Download[]): void {
+    for (const update of updates) this.mergeOne(update);
+  }
+
+  private mergeOne(update: Download): void {
+    this.downloads.update((items) => {
+      const index = items.findIndex((item) => item.id === update.id);
+      if (index < 0) return [update, ...items];
+      const next = [...items];
+      next[index] = { ...next[index], ...update };
+      return next;
+    });
+  }
 }

@@ -3,7 +3,6 @@ const path = require('node:path');
 const { startBackend, stopBackend, getBackendInfo } = require('./backend-sidecar.cjs');
 const clipboardWatcher = require('./clipboard-watcher.cjs');
 const tray = require('./tray.cjs');
-const updater = require('./updater.cjs');
 
 const isDev = process.env.ADM_DEV === '1';
 let mainWindow = null;
@@ -57,6 +56,10 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle('adm:getBackendInfo', () => getBackendInfo());
+  ipcMain.handle('adm:openFolder', async (_event, folderPath) => {
+    if (typeof folderPath !== 'string' || folderPath.length < 1) return;
+    await shell.openPath(folderPath);
+  });
 
   createWindow();
   tray.build(mainWindow, () => { quitting = true; app.quit(); });
@@ -65,7 +68,7 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send('adm:urlFromClipboard', url);
   });
 
-  if (!isDev) updater.init(mainWindow);
+  if (!isDev) require('./updater.cjs').init(mainWindow);
 
   app.on('activate', () => {
     if (!mainWindow) createWindow();

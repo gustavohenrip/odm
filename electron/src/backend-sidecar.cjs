@@ -9,12 +9,13 @@ let backendToken = null;
 const READY_REGEX = /ADM_READY port=(\d+) token=([A-Za-z0-9_-]+)/;
 
 function resolveJavaBin() {
-  const jdkPath = path.join(process.resourcesPath ?? '', 'jdk');
   const javaName = process.platform === 'win32' ? 'java.exe' : 'java';
   if (process.resourcesPath) {
-    return path.join(jdkPath, 'bin', javaName);
+    const bundled = path.join(process.resourcesPath, 'jdk', 'bin', javaName);
+    const fs = require('node:fs');
+    if (fs.existsSync(bundled)) return bundled;
   }
-  return 'java';
+  return javaName;
 }
 
 function resolveBackendJar() {
@@ -29,6 +30,11 @@ function startBackend() {
     const javaBin = resolveJavaBin();
     const jar = resolveBackendJar();
     const userHome = app.getPath('home');
+
+    const fs = require('node:fs');
+    fs.writeFileSync('/tmp/adm-sidecar-debug.txt',
+      `javaBin=${javaBin}\njar=${jar}\nhome=${userHome}\nPATH=${process.env.PATH}\n`
+    );
 
     backendProcess = spawn(javaBin, [
       '-Xms128m',
@@ -48,6 +54,7 @@ function startBackend() {
 
     backendProcess.stdout.on('data', (chunk) => {
       const text = chunk.toString('utf8');
+      fs.appendFileSync('/tmp/adm-sidecar-debug.txt', `stdout: ${text}`);
       process.stdout.write(`[backend] ${text}`);
       const match = text.match(READY_REGEX);
       if (match && !backendPort) {
@@ -58,11 +65,20 @@ function startBackend() {
       }
     });
 
+    backendProcess.on('error', (err) => {
+      fs.appendFileSync('/tmp/adm-sidecar-debug.txt', `spawn-error: ${err.message}\n`);
+      clearTimeout(timeout);
+      reject(err);
+    });
+
     backendProcess.stderr.on('data', (chunk) => {
-      process.stderr.write(`[backend-err] ${chunk.toString('utf8')}`);
+      const text = chunk.toString('utf8');
+      fs.appendFileSync('/tmp/adm-sidecar-debug.txt', `stderr: ${text}`);
+      process.stderr.write(`[backend-err] ${text}`);
     });
 
     backendProcess.on('exit', (code) => {
+      fs.appendFileSync('/tmp/adm-sidecar-debug.txt', `exit: ${code}\n`);
       console.log(`[ADM] backend exited with code ${code}`);
       backendProcess = null;
       backendPort = null;

@@ -28,6 +28,9 @@ electron/release/
 electron/app/
 
 resources/jdk/
+resources/backend/
+.playwright-mcp/
+adm-phase1-*.png
 
 *.sqlite
 *.sqlite-journal

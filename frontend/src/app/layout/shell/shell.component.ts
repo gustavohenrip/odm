@@ -51,7 +51,7 @@ import { BackgroundComponent } from '../../shared/components/background/backgrou
       min-height: 0;
       display: flex;
     }
-    .content > :first-child {
+    .content > router-outlet + * {
       flex: 1;
       min-height: 0;
     }

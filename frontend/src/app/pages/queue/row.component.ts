@@ -58,6 +58,9 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
         <app-icon-btn (click)="more.emit(d.id)" [ariaLabel]="'actions.more' | translate">
           <app-icon name="more" [size]="13"></app-icon>
         </app-icon-btn>
+        <app-icon-btn (click)="remove.emit(d.id)" ariaLabel="Remove">
+          <app-icon name="trash" [size]="13"></app-icon>
+        </app-icon-btn>
       </div>
     </div>
   `,
@@ -129,6 +132,7 @@ export class QueueRowComponent {
   @Output() resume = new EventEmitter<string>();
   @Output() more = new EventEmitter<string>();
   @Output() openFolder = new EventEmitter<string>();
+  @Output() remove = new EventEmitter<string>();
 
   get size(): string { return formatBytes(this.d.sizeBytes); }
   get speed(): string { return formatSpeed(this.d.speedBps / (1024 * 1024)); }

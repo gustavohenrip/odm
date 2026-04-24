@@ -1,6 +1,5 @@
 import { Injectable, NgZone, inject, signal } from '@angular/core';
 import { Client, IMessage } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 
 import { Download } from '../api/download.model';
 import { BackendConfigService } from '../api/backend-config.service';
@@ -14,9 +13,10 @@ export class ProgressGateway {
   readonly connected = signal(false);
   readonly updates = signal<Download[]>([]);
 
-  connect(): void {
+  async connect(): Promise<void> {
     if (this.client) return;
     const { baseUrl, token } = this.config.snapshot();
+    const SockJS = (await import('sockjs-client')).default;
     this.client = new Client({
       webSocketFactory: () => new SockJS(`${baseUrl}/ws`) as any,
       connectHeaders: token ? { 'X-Adm-Token': token } : {},
@@ -41,8 +41,13 @@ export class ProgressGateway {
 
   private onMessage(msg: IMessage): void {
     try {
-      const payload = JSON.parse(msg.body) as Download[];
-      this.zone.run(() => this.updates.set(payload));
+      const payload = JSON.parse(msg.body) as Array<Download & { kind?: string; status?: string }>;
+      const normalized = payload.map((item) => ({
+        ...item,
+        kind: String(item.kind ?? '').toLowerCase() as Download['kind'],
+        status: String(item.status ?? '').toLowerCase() as Download['status'],
+      }));
+      this.zone.run(() => this.updates.set(normalized));
     } catch {}
   }
 }

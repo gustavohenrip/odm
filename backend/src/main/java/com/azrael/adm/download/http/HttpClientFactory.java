@@ -16,7 +16,7 @@ public class HttpClientFactory {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(Duration.ofSeconds(30))
                 .version(HttpClient.Version.HTTP_2)
-                .executor(Executors.newVirtualThreadPerTaskExecutor())
+                .executor(Executors.newCachedThreadPool())
                 .build();
     }
 }

@@ -20,11 +20,13 @@ import com.frostwire.jlibtorrent.AlertListener;
 import com.frostwire.jlibtorrent.SessionManager;
 import com.frostwire.jlibtorrent.SessionParams;
 import com.frostwire.jlibtorrent.SettingsPack;
+import com.frostwire.jlibtorrent.TorrentFlags;
 import com.frostwire.jlibtorrent.TorrentHandle;
 import com.frostwire.jlibtorrent.TorrentInfo;
 import com.frostwire.jlibtorrent.alerts.Alert;
 import com.frostwire.jlibtorrent.alerts.AlertType;
 import com.frostwire.jlibtorrent.alerts.TorrentAlert;
+import com.frostwire.jlibtorrent.swig.session_handle;
 
 @Component
 @EnableConfigurationProperties(TorrentProperties.class)
@@ -48,14 +50,14 @@ public class TorrentSession {
         }
         try {
             manager = new SessionManager();
-            SettingsPack pack = new SettingsPack()
-                    .enableDht(props.isDhtEnabled())
-                    .enableLsd(props.isLsdEnabled())
-                    .enableUpnp(props.isUpnpEnabled())
-                    .enableNatpmp(props.isUpnpEnabled());
+            SettingsPack pack = new SettingsPack();
+            pack.setEnableDht(props.isDhtEnabled());
+            pack.setEnableLsd(props.isLsdEnabled());
             if (props.getListenPort() > 0) {
-                String iface = "0.0.0.0:" + props.getListenPort();
-                pack.setString(com.frostwire.jlibtorrent.swig.settings_pack.string_types.listen_interfaces.swigValue(), iface);
+                pack.setString(
+                    com.frostwire.jlibtorrent.swig.settings_pack.string_types.listen_interfaces.swigValue(),
+                    "0.0.0.0:" + props.getListenPort()
+                );
             }
             manager.start(new SessionParams(pack));
             manager.addListener(new AlertListener() {
@@ -78,7 +80,7 @@ public class TorrentSession {
 
     public String addMagnet(String magnet, Path savePath) {
         Objects.requireNonNull(manager, "torrent session unavailable");
-        manager.download(magnet, savePath.toFile());
+        manager.download(magnet, savePath.toFile(), TorrentFlags.AUTO_MANAGED);
         return magnet;
     }
 
@@ -91,7 +93,7 @@ public class TorrentSession {
             File dir = savePath.toFile();
             if (!dir.exists()) dir.mkdirs();
             manager.download(info, dir);
-            return info.infoHash().toHex();
+            return info.infoHashV1().toHex();
         } finally {
             Files.deleteIfExists(tmp);
         }
@@ -111,12 +113,16 @@ public class TorrentSession {
         if (manager == null) return;
         TorrentHandle h = findHandle(infoHash);
         if (h == null) return;
-        manager.remove(h, deleteFiles ? SessionManager.Options.DELETE_FILES : SessionManager.Options.DEFAULT);
+        if (deleteFiles) {
+            manager.remove(h, session_handle.delete_files);
+        } else {
+            manager.remove(h);
+        }
     }
 
     private TorrentHandle findHandle(String infoHash) {
         if (manager == null) return null;
-        for (TorrentHandle h : manager.torrents()) {
+        for (TorrentHandle h : manager.getTorrentHandles()) {
             if (h.infoHash().toHex().equalsIgnoreCase(infoHash)) return h;
         }
         return null;
@@ -125,7 +131,7 @@ public class TorrentSession {
     private void handleAlert(Alert<?> alert) {
         if (!(alert instanceof TorrentAlert<?> ta)) return;
         AlertType type = alert.type();
-        if (type == AlertType.TORRENT_FINISHED || type == AlertType.STATS) {
+        if (type == AlertType.TORRENT_FINISHED || type == AlertType.SESSION_STATS) {
             log.debug("torrent alert {} for {}", type, ta.torrentName());
         }
     }
