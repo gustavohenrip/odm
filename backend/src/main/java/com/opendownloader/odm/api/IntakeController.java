@@ -13,6 +13,7 @@ import com.opendownloader.odm.download.DownloadPreview;
 import com.opendownloader.odm.download.DownloadService;
 import com.opendownloader.odm.download.torrent.TorrentCreateRequest;
 import com.opendownloader.odm.download.torrent.TorrentDownloadService;
+import com.opendownloader.odm.download.torrent.TorrentSession;
 import java.util.List;
 
 @RestController
@@ -46,8 +47,10 @@ public class IntakeController {
             throw new IllegalArgumentException("url is required");
         }
         String url = payload.url().trim();
+        String magnet = TorrentSession.normalizeMagnet(url);
+        if (magnet != null) url = magnet;
         if (url.regionMatches(true, 0, "magnet:", 0, 7)) {
-            return torrents.preview(new TorrentCreateRequest(url, null, null, payload.folder(), null, null));
+            return torrents.preview(new TorrentCreateRequest(url, null, null, payload.folder(), payload.filename(), null));
         }
         if (url.matches("(?i)^https?://.*\\.torrent(?:[?#].*)?$")) {
             return torrents.preview(new TorrentCreateRequest(null, url, null, payload.folder(), null, null));

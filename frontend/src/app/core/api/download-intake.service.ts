@@ -146,7 +146,7 @@ export class DownloadIntakeService {
   }
 
   private isMagnet(url: string): boolean {
-    return url.toLowerCase().startsWith('magnet:');
+    return this.normalizeMagnet(url).toLowerCase().startsWith('magnet:');
   }
 
   private isTorrentUrl(url: string): boolean {
@@ -188,19 +188,26 @@ export class DownloadIntakeService {
     if (!value) return '';
     if (value.toLowerCase().startsWith('odm://add?')) {
       try {
-        return new URL(value).searchParams.get('url')?.trim() || '';
+        return this.cleanUrl(new URL(value).searchParams.get('url')?.trim() || '');
       } catch {
         return '';
       }
     }
+    return this.normalizeMagnet(value) || value;
+  }
+
+  private normalizeMagnet(url: string): string {
+    let value = (url || '').trim();
+    if (!value) return '';
+    if (/^web\+magnet:/i.test(value)) value = value.replace(/^web\+magnet:/i, 'magnet:');
     if (/^magnet%3a/i.test(value)) {
       try {
-        return decodeURIComponent(value);
-      } catch {
-        return value;
-      }
+        value = decodeURIComponent(value);
+      } catch {}
     }
-    return value;
+    if (/^magnet:\/\/\?/i.test(value)) value = `magnet:?${value.slice(value.indexOf('?') + 1)}`;
+    if (!/^magnet:/i.test(value)) return '';
+    return value.replace(/([?&]xt=urn)%3A(btih|btmh)%3A/ig, '$1:$2:');
   }
 
   private previewKeys(preview: DownloadPreview, extraKeys: string[]): string[] {

@@ -188,6 +188,10 @@ function artifactExt(target) {
   return '.AppImage';
 }
 
+function cleanInstallerOutput() {
+  rmSync(join(rootDir, 'odm-desktop', 'dist'), { recursive: true, force: true });
+}
+
 function listArtifacts(target) {
   const dist = join(rootDir, 'odm-desktop', 'dist');
   if (!existsSync(dist)) return [];
@@ -242,6 +246,7 @@ async function main() {
   verifyStagedApp();
 
   console.log('\nGerando instalador');
+  cleanInstallerOutput();
   const env = target === 'dmg' && !process.env.CSC_LINK
     ? { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
     : {};

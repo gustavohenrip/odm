@@ -16,6 +16,8 @@ const ODM_HOST_HINTS = [
   'gofile.io',
 ];
 
+const ODM_DOWNLOAD_RE = /\b(download|downloads|baixar|baixe|descargar|telecharger|télécharger|scarica|get\s*link|generate\s*link|free\s*download|download\s*now)\b/i;
+
 function odmHostOf(url) {
   try { return new URL(url).hostname.toLowerCase(); } catch { return ''; }
 }
@@ -29,6 +31,25 @@ function odmExtensionOf(url) {
   return match ? match[1].toLowerCase() : '';
 }
 
+function odmSignalText(anchor, url) {
+  const parts = [
+    anchor.textContent || '',
+    anchor.getAttribute('aria-label') || '',
+    anchor.title || '',
+    anchor.id || '',
+    anchor.className || '',
+    anchor.getAttribute('data-testid') || '',
+    anchor.getAttribute('data-action') || '',
+    anchor.getAttribute('rel') || '',
+    url || '',
+  ];
+  const parent = anchor.closest('button, [role="button"], .download, .download-button, .btn, form');
+  if (parent && parent !== anchor) {
+    parts.push(parent.textContent || '', parent.id || '', parent.className || '', parent.getAttribute('aria-label') || '');
+  }
+  return parts.join(' ');
+}
+
 function odmShouldCapture(anchor, url) {
   if (/^magnet:/i.test(url)) return true;
   if (!/^https?:/i.test(url)) return false;
@@ -37,8 +58,7 @@ function odmShouldCapture(anchor, url) {
   if (anchor.hasAttribute('download')) return true;
   const ext = odmExtensionOf(url);
   if (ODM_EXTENSIONS.has(ext)) return true;
-  const label = `${anchor.textContent || ''} ${anchor.getAttribute('aria-label') || ''} ${anchor.title || ''}`.toLowerCase();
-  return odmMatchesHost(host, ODM_HOST_HINTS) && /\b(download|baixar|descargar|telecharger|télécharger|scarica)\b/.test(label);
+  return odmMatchesHost(host, ODM_HOST_HINTS) && ODM_DOWNLOAD_RE.test(odmSignalText(anchor, url));
 }
 
 function odmContinue(url, target) {
@@ -77,12 +97,9 @@ document.addEventListener('click', (event) => {
     url,
     referer: window.location.href,
     download: anchor.hasAttribute('download'),
-    label: `${anchor.textContent || ''} ${anchor.getAttribute('aria-label') || ''} ${anchor.title || ''}`,
+    label: odmSignalText(anchor, url),
     filename: odmFilename(anchor, url),
   }, (response) => {
-    if (chrome.runtime.lastError || !response || response.ok === false) {
-      if (!response || response.capture !== false) odmContinue(url, anchor.target);
-      else odmContinue(url, anchor.target);
-    }
+    if (response && response.capture === false) odmContinue(url, anchor.target);
   });
 }, true);

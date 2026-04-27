@@ -81,7 +81,7 @@ public class TorrentDownloadService {
         String url;
         String name;
         if (req != null && req.magnet() != null && !req.magnet().isBlank()) {
-            url = req.magnet().trim();
+            url = normalizeRequiredMagnet(req.magnet());
             key = sourceKey(TorrentSession.magnetKey(url), url);
             DownloadEntity existing = reusable(key);
             if (existing != null) {
@@ -140,9 +140,9 @@ public class TorrentDownloadService {
         Path folder = resolveFolder(req == null ? null : req.folder());
         String id = UUID.randomUUID().toString();
         if (req != null && req.magnet() != null && !req.magnet().isBlank()) {
-            String magnet = req.magnet().trim();
+            String magnet = normalizeRequiredMagnet(req.magnet());
             String key = TorrentSession.magnetKey(magnet);
-            String name = magnetDisplayName(magnet, key);
+            String name = preferredName(req.name(), magnetDisplayName(magnet, key));
             long size = 0L;
             if (name.equals("Magnet " + shortKey(key))) {
                 TorrentInfo info = torrents.fetchMagnetInfo(magnet, folder, 5);
@@ -297,6 +297,12 @@ public class TorrentDownloadService {
     private String sourceKey(String key, String fallback) {
         if (key != null && !key.isBlank()) return key.trim();
         return fallback == null ? "magnet" : fallback.trim();
+    }
+
+    private String normalizeRequiredMagnet(String magnet) {
+        String normalized = TorrentSession.normalizeMagnet(magnet);
+        if (normalized == null || normalized.isBlank()) throw new IllegalArgumentException("invalid magnet link");
+        return normalized;
     }
 
     private String shortKey(String key) {

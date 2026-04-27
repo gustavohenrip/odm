@@ -1,6 +1,8 @@
 package com.opendownloader.odm.download.torrent;
 
 import java.io.File;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
@@ -187,9 +189,26 @@ public class TorrentSession {
     }
 
     public static String magnetKey(String magnet) {
-        if (magnet == null) return null;
-        Matcher matcher = BTIH.matcher(magnet);
+        String normalized = normalizeMagnet(magnet);
+        if (normalized == null) return null;
+        Matcher matcher = BTIH.matcher(normalized);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    public static String normalizeMagnet(String magnet) {
+        if (magnet == null) return null;
+        String value = magnet.trim();
+        if (value.isBlank()) return null;
+        if (value.regionMatches(true, 0, "web+magnet:", 0, 11)) value = "magnet:" + value.substring(11);
+        if (value.regionMatches(true, 0, "magnet%3a", 0, 9)) {
+            try {
+                value = URLDecoder.decode(value, StandardCharsets.UTF_8);
+            } catch (Exception ignored) {
+            }
+        }
+        if (value.regionMatches(true, 0, "magnet://?", 0, 10)) value = "magnet:?" + value.substring(value.indexOf('?') + 1);
+        if (!value.regionMatches(true, 0, "magnet:", 0, 7)) return null;
+        return value.replaceAll("(?i)([?&]xt=urn)%3A(btih|btmh)%3A", "$1:$2:");
     }
 
     private boolean matches(TorrentHandle h, String key) {

@@ -4,7 +4,7 @@ const REQUEST_TTL_MS = 120_000;
 const RECENT_TTL_MS = 45_000;
 const NATIVE_HOST = 'com.opendownloader.odm';
 
-const DOWNLOAD_TYPES = ['main_frame', 'sub_frame', 'object', 'xmlhttprequest', 'other'];
+const DOWNLOAD_TYPES = ['main_frame', 'sub_frame', 'object', 'xmlhttprequest', 'media', 'other'];
 const INTERNAL_HOSTS = new Set(['127.0.0.1', 'localhost']);
 const LINK_HOST_HINTS = [
   'mediafire.com',
@@ -86,7 +86,7 @@ function isHttpUrl(url) {
 }
 
 function isMagnetUrl(url) {
-  return /^magnet:/i.test(url || '');
+  return /^magnet:/i.test(normalizeMagnet(url) || '');
 }
 
 function matchesHost(host, list) {
@@ -178,7 +178,7 @@ function shouldCaptureLink(url, settings, hasDownloadAttribute = false, label = 
   const ext = extensionOf(url, '');
   if (ext && settings.extensions.includes(ext)) return true;
   return matchesHost(host, LINK_HOST_HINTS)
-    && /\b(download|baixar|descargar|telecharger|télécharger|scarica)\b/i.test(label || '');
+    && /\b(download|downloads|baixar|baixe|descargar|telecharger|télécharger|scarica|get\s*link|generate\s*link|free\s*download|download\s*now)\b/i.test(`${label || ''} ${url || ''}`);
 }
 
 async function discoverOnce() {
@@ -276,7 +276,7 @@ async function postToBackend(handshake, body) {
 
 function downloadPayload(url, options = {}) {
   return {
-    url,
+    url: normalizeMagnet(url) || url,
     folder: options.folder,
     referer: options.referer || '',
     cookies: options.cookieHeader || options.cookies || '',
@@ -297,6 +297,7 @@ async function sendToOdm(url, options = {}) {
 }
 
 async function sendToOdmNow(url, options = {}) {
+  url = normalizeMagnet(url) || url;
   const cookieHeader = isHttpUrl(url) ? options.cookieHeader || options.cookies || (await getCookieHeader(url)) : '';
   const body = downloadPayload(url, { ...options, cookieHeader });
   const native = await nativeMessage('enqueue', body);
@@ -317,10 +318,23 @@ async function sendToOdmNow(url, options = {}) {
 }
 
 function requestKey(url) {
-  const value = String(url || '').trim();
+  const value = String(normalizeMagnet(url) || url || '').trim();
   const match = /xt=urn:btih:([^&]+)/i.exec(value);
   if (match) return `torrent:${match[1].toLowerCase()}`;
   return value.toLowerCase();
+}
+
+function normalizeMagnet(url) {
+  if (typeof url !== 'string') return '';
+  let value = url.trim();
+  if (!value) return '';
+  if (/^web\+magnet:/i.test(value)) value = value.replace(/^web\+magnet:/i, 'magnet:');
+  if (/^magnet%3a/i.test(value)) {
+    try { value = decodeURIComponent(value); } catch {}
+  }
+  if (/^magnet:\/\/\?/i.test(value)) value = `magnet:?${value.slice(value.indexOf('?') + 1)}`;
+  if (!/^magnet:/i.test(value)) return '';
+  return value.replace(/([?&]xt=urn)%3A(btih|btmh)%3A/ig, '$1:$2:');
 }
 
 function rememberRecent(url) {
@@ -366,20 +380,69 @@ function interceptResponse(details) {
   return {};
 }
 
-function shouldInterceptDownloadItem(item, settings) {
+function shouldInterceptDownloadItem(item, settings, response = {}) {
   if (!settings.enabled) return false;
   if (item.byExtensionId) return false;
   if (item.state !== 'in_progress' && item.state !== 'interrupted') return false;
   const url = item.finalUrl || item.url;
   if (!isHttpUrl(url) || isExcludedUrl(url, settings)) return false;
-  if (item.mime && settings.excludeMime.includes(item.mime.toLowerCase())) return false;
-  const ext = extensionOf(url, item.filename);
-  const sizeKB = Math.max(0, (item.totalBytes || 0) / 1024);
+  const mime = (item.mime || response.contentType || '').toLowerCase();
+  if (mime && settings.excludeMime.includes(mime)) return false;
+  if (hasAttachmentDisposition(response.disposition)) return true;
+  const ext = extensionOf(url, item.filename || response.filename);
+  const sizeKB = Math.max(0, (item.totalBytes || response.sizeBytes || 0) / 1024);
   if (ext && settings.extensions.includes(ext)) return true;
-  return sizeKB >= settings.minSizeKB;
+  return sizeKB >= settings.minSizeKB && (isBinaryMime(mime) || !mime);
+}
+
+async function cancelChromeDownload(id) {
+  try { await chrome.downloads.cancel(id); } catch {}
+  try { await chrome.downloads.erase({ id }); } catch {}
+}
+
+function shouldPreflightRequest(details, settings) {
+  if (!settings.enabled) return false;
+  if (details.method && details.method.toUpperCase() !== 'GET') return false;
+  if (details.type !== 'main_frame') return false;
+  if (!isHttpUrl(details.url) || isExcludedUrl(details.url, settings)) return false;
+  if (wasRecentlyIntercepted(details.url)) return false;
+  const ext = extensionOf(details.url, '');
+  if (ext && settings.extensions.includes(ext)) return true;
+  const host = hostOf(details.url);
+  let signal = '';
+  try {
+    const parsed = new URL(details.url);
+    signal = parsed.pathname + parsed.search;
+  } catch {
+    return false;
+  }
+  return matchesHost(host, LINK_HOST_HINTS)
+    && /\b(download|dl|file|token|get|generate|baixar)\b/i.test(signal);
+}
+
+function stopTabNavigation(tabId) {
+  if (typeof tabId !== 'number' || tabId < 0) return;
+  chrome.tabs.update(tabId, { url: 'about:blank' }).catch(() => {});
 }
 
 try {
+  chrome.webRequest.onBeforeRequest.addListener(
+    (details) => {
+      const settings = settingsCache;
+      if (!shouldPreflightRequest(details, settings)) return {};
+      rememberRecent(details.url);
+      stopTabNavigation(details.tabId);
+      sendToOdm(details.url, {
+        referer: details.initiator || '',
+        probe: false,
+      }).then((result) => {
+        if (result.ok) notify('Sent to ODM', details.url);
+        else notify('ODM error', result.error || 'unknown');
+      }).catch((e) => notify('ODM bridge error', String(e && e.message || e)));
+      return {};
+    },
+    { urls: ['<all_urls>'], types: ['main_frame'] },
+  );
   chrome.webRequest.onHeadersReceived.addListener(
     interceptResponse,
     { urls: ['<all_urls>'], types: DOWNLOAD_TYPES },
@@ -392,10 +455,13 @@ try {
 chrome.downloads.onCreated.addListener(async (item) => {
   try {
     const settings = await loadSettings();
-    if (!shouldInterceptDownloadItem(item, settings)) return;
     const url = item.finalUrl || item.url;
-    if (!url || wasRecentlyIntercepted(url)) return;
     const response = responseFor(url);
+    if (!shouldInterceptDownloadItem(item, settings, response)) return;
+    await cancelChromeDownload(item.id);
+    if (!url) return;
+    if (wasRecentlyIntercepted(url)) return;
+    rememberRecent(url);
     const cookieHeader = await getCookieHeader(url);
     const result = await sendToOdm(url, {
       referer: item.referrer || '',
@@ -406,9 +472,7 @@ chrome.downloads.onCreated.addListener(async (item) => {
       probe: false,
     });
     if (result.ok) {
-      rememberRecent(url);
-      try { await chrome.downloads.cancel(item.id); } catch {}
-      try { await chrome.downloads.erase({ id: item.id }); } catch {}
+      await cancelChromeDownload(item.id);
       await notify('Sent to ODM', url);
     } else {
       await notify('ODM bridge unreachable', result.error || 'unknown error');
@@ -441,6 +505,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const cookieHeader = await getCookieHeader(url);
     const referer = (tab && tab.url) || '';
     const direct = info.menuItemId === 'odm-send-link' && shouldCaptureLink(url, settings, false);
+    rememberRecent(url);
     const result = await sendToOdm(url, { referer, cookieHeader, probe: direct ? false : undefined });
     if (result.ok) {
       rememberRecent(url);
@@ -472,6 +537,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, capture: false });
         return null;
       }
+      rememberRecent(msg.url);
       return sendToOdm(msg.url, {
         referer: msg.referer || (sender.tab && sender.tab.url) || '',
         filename: msg.filename || undefined,
