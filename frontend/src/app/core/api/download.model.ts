@@ -25,6 +25,18 @@ export interface DownloadCreateRequest {
   segments?: number;
   username?: string;
   password?: string;
+  mirrors?: string[];
+  checksumAlgo?: string;
+  checksumExpected?: string;
+}
+
+export interface BatchDownloadRequest {
+  urls?: string[];
+  pattern?: string;
+  folder?: string;
+  segments?: number;
+  username?: string;
+  password?: string;
 }
 
 export interface TorrentCreateRequest {
@@ -32,4 +44,14 @@ export interface TorrentCreateRequest {
   torrentUrl?: string;
   torrentBase64?: string;
   folder?: string;
+}
+
+export interface ScheduleRule {
+  id?: number;
+  cronStart?: string;
+  cronPause?: string;
+  enabled: boolean;
+  label?: string;
+  shutdownAfter?: boolean;
+  rateLimitKbps?: number;
 }

@@ -3,7 +3,13 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { BackendConfigService } from './backend-config.service';
-import { Download, DownloadCreateRequest, TorrentCreateRequest } from './download.model';
+import {
+  BatchDownloadRequest,
+  Download,
+  DownloadCreateRequest,
+  ScheduleRule,
+  TorrentCreateRequest,
+} from './download.model';
 
 @Injectable({ providedIn: 'root' })
 export class DownloadsService {
@@ -18,6 +24,10 @@ export class DownloadsService {
     return this.http.post<Download>(`${this.base}/api/downloads`, req, { headers: this.headers });
   }
 
+  createBatch(req: BatchDownloadRequest): Observable<Download[]> {
+    return this.http.post<Download[]>(`${this.base}/api/downloads/batch`, req, { headers: this.headers });
+  }
+
   pause(id: string): Observable<Download> {
     return this.http.post<Download>(`${this.base}/api/downloads/${id}/pause`, null, { headers: this.headers });
   }
@@ -26,12 +36,43 @@ export class DownloadsService {
     return this.http.post<Download>(`${this.base}/api/downloads/${id}/resume`, null, { headers: this.headers });
   }
 
+  refresh(id: string, url: string): Observable<Download> {
+    return this.http.post<Download>(`${this.base}/api/downloads/${id}/refresh`, { url }, { headers: this.headers });
+  }
+
+  pauseAll(): Observable<Download[]> {
+    return this.http.post<Download[]>(`${this.base}/api/downloads/pause-all`, null, { headers: this.headers });
+  }
+
+  resumeAll(): Observable<Download[]> {
+    return this.http.post<Download[]>(`${this.base}/api/downloads/resume-all`, null, { headers: this.headers });
+  }
+
   remove(id: string, deleteFiles = false): Observable<void> {
     return this.http.delete<void>(`${this.base}/api/downloads/${id}?deleteFiles=${deleteFiles}`, { headers: this.headers });
   }
 
   addTorrent(req: TorrentCreateRequest): Observable<Download> {
     return this.http.post<Download>(`${this.base}/api/torrents`, req, { headers: this.headers });
+  }
+
+  scheduleRules(): Observable<ScheduleRule[]> {
+    return this.http.get<ScheduleRule[]>(`${this.base}/api/schedule/rules`, { headers: this.headers });
+  }
+
+  saveScheduleRule(rule: ScheduleRule): Observable<ScheduleRule> {
+    if (rule.id != null) {
+      return this.http.put<ScheduleRule>(`${this.base}/api/schedule/rules/${rule.id}`, rule, { headers: this.headers });
+    }
+    return this.http.post<ScheduleRule>(`${this.base}/api/schedule/rules`, rule, { headers: this.headers });
+  }
+
+  deleteScheduleRule(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/api/schedule/rules/${id}`, { headers: this.headers });
+  }
+
+  reportClipboardUrl(url: string): Observable<unknown> {
+    return this.http.post(`${this.base}/api/clipboard/captured`, { url }, { headers: this.headers });
   }
 
   private get base(): string {
