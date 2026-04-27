@@ -14,10 +14,13 @@ import com.opendownloader.odm.download.DownloadCreateRequest;
 import com.opendownloader.odm.download.DownloadKind;
 import com.opendownloader.odm.download.DownloadService;
 import com.opendownloader.odm.download.DownloadView;
+import com.opendownloader.odm.download.batch.BatchDownloadRequest;
+import com.opendownloader.odm.download.batch.BatchDownloadService;
 import com.opendownloader.odm.download.torrent.TorrentDownloadService;
 import com.opendownloader.odm.persistence.DownloadRepository;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/downloads")
@@ -25,11 +28,14 @@ public class DownloadsController {
 
     private final DownloadService downloads;
     private final TorrentDownloadService torrents;
+    private final BatchDownloadService batch;
     private final DownloadRepository repo;
 
-    public DownloadsController(DownloadService downloads, TorrentDownloadService torrents, DownloadRepository repo) {
+    public DownloadsController(DownloadService downloads, TorrentDownloadService torrents,
+                               BatchDownloadService batch, DownloadRepository repo) {
         this.downloads = downloads;
         this.torrents = torrents;
+        this.batch = batch;
         this.repo = repo;
     }
 
@@ -43,6 +49,11 @@ public class DownloadsController {
         return ResponseEntity.accepted().body(downloads.create(payload));
     }
 
+    @PostMapping("/batch")
+    public ResponseEntity<List<DownloadView>> createBatch(@RequestBody BatchDownloadRequest payload) {
+        return ResponseEntity.accepted().body(batch.submit(payload));
+    }
+
     @PostMapping("/{id}/pause")
     public ResponseEntity<DownloadView> pause(@PathVariable String id) {
         return ResponseEntity.ok(isTorrent(id) ? torrents.pause(id) : downloads.pause(id));
@@ -51,6 +62,22 @@ public class DownloadsController {
     @PostMapping("/{id}/resume")
     public ResponseEntity<DownloadView> resume(@PathVariable String id) throws Exception {
         return ResponseEntity.ok(isTorrent(id) ? torrents.resume(id) : downloads.resume(id));
+    }
+
+    @PostMapping("/{id}/refresh")
+    public ResponseEntity<DownloadView> refresh(@PathVariable String id, @RequestBody Map<String, String> body) throws Exception {
+        if (isTorrent(id)) throw new IllegalArgumentException("refresh not supported for torrents");
+        return ResponseEntity.ok(downloads.refresh(id, body == null ? null : body.get("url")));
+    }
+
+    @PostMapping("/pause-all")
+    public ResponseEntity<List<DownloadView>> pauseAll() {
+        return ResponseEntity.ok(downloads.pauseAll());
+    }
+
+    @PostMapping("/resume-all")
+    public ResponseEntity<List<DownloadView>> resumeAll() {
+        return ResponseEntity.ok(downloads.resumeAll());
     }
 
     @DeleteMapping("/{id}")
