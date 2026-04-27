@@ -14,7 +14,10 @@ export type IconName =
   | 'moon'
   | 'link'
   | 'trash'
-  | 'arrow-down';
+  | 'arrow-down'
+  | 'x'
+  | 'refresh'
+  | 'clock';
 
 const PATHS: Record<IconName, string> = {
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
@@ -41,6 +44,11 @@ const PATHS: Record<IconName, string> = {
     '<path d="M5 7h14M10 11v6M14 11v6M8 7l1-2h6l1 2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   'arrow-down':
     '<path d="M12 5v11m0 0l-4-4m4 4l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  refresh:
+    '<path d="M4 12a8 8 0 0114-5.3L20 5v5h-5M20 12a8 8 0 01-14 5.3L4 19v-5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  clock:
+    '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
 };
 
 @Component({
