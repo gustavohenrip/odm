@@ -1,7 +1,9 @@
 package com.opendownloader.odm.download.http;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SegmentManager {
@@ -13,7 +15,7 @@ public final class SegmentManager {
 
     public SegmentManager(long totalSize, int initialCount, long minSplitSize) {
         this.totalSize = totalSize;
-        this.minSplitSize = Math.max(minSplitSize, 128L * 1024L);
+        this.minSplitSize = Math.max(1L, minSplitSize);
         partition(Math.max(1, initialCount));
     }
 
@@ -34,17 +36,12 @@ public final class SegmentManager {
     }
 
     public synchronized Segment largestActive() {
-        Segment best = null;
-        long bestRemaining = 0;
+        PriorityQueue<Segment> heap = new PriorityQueue<>(
+                Comparator.comparingLong(Segment::remaining).reversed());
         for (Segment s : segments) {
-            if (s.completed()) continue;
-            long r = s.remaining();
-            if (r > bestRemaining) {
-                best = s;
-                bestRemaining = r;
-            }
+            if (!s.completed() && s.remaining() > 0) heap.offer(s);
         }
-        return best;
+        return heap.peek();
     }
 
     public synchronized Segment stealFromLargest() {

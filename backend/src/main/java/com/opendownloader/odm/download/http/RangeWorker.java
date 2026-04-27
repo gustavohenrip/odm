@@ -21,7 +21,7 @@ import com.opendownloader.odm.download.queue.RateLimiter;
 public final class RangeWorker implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(RangeWorker.class);
-    private static final int BUFFER_SIZE = 64 * 1024;
+    private static final int DEFAULT_BUFFER_SIZE = 512 * 1024;
 
     private final String downloadId;
     private final HttpClient client;
@@ -31,10 +31,22 @@ public final class RangeWorker implements Runnable {
     private final ProgressBus progressBus;
     private final AtomicBoolean stopFlag;
     private final RateLimiter rateLimiter;
+    private final int bufferSize;
+    private final java.util.List<URI> mirrors;
+    private final java.util.concurrent.atomic.AtomicInteger mirrorCursor;
 
     public RangeWorker(String downloadId, HttpClient client, URI uri, Path target,
                        SegmentManager manager, ProgressBus progressBus,
                        AtomicBoolean stopFlag, RateLimiter rateLimiter) {
+        this(downloadId, client, uri, target, manager, progressBus, stopFlag, rateLimiter,
+                DEFAULT_BUFFER_SIZE, java.util.List.of(uri), new java.util.concurrent.atomic.AtomicInteger());
+    }
+
+    public RangeWorker(String downloadId, HttpClient client, URI uri, Path target,
+                       SegmentManager manager, ProgressBus progressBus,
+                       AtomicBoolean stopFlag, RateLimiter rateLimiter,
+                       int bufferSize, java.util.List<URI> mirrors,
+                       java.util.concurrent.atomic.AtomicInteger mirrorCursor) {
         this.downloadId = downloadId;
         this.client = client;
         this.uri = uri;
@@ -43,6 +55,9 @@ public final class RangeWorker implements Runnable {
         this.progressBus = progressBus;
         this.stopFlag = stopFlag;
         this.rateLimiter = rateLimiter;
+        this.bufferSize = Math.max(8 * 1024, bufferSize);
+        this.mirrors = mirrors == null || mirrors.isEmpty() ? java.util.List.of(uri) : mirrors;
+        this.mirrorCursor = mirrorCursor == null ? new java.util.concurrent.atomic.AtomicInteger() : mirrorCursor;
     }
 
     @Override
@@ -71,7 +86,8 @@ public final class RangeWorker implements Runnable {
             seg.markComplete();
             return;
         }
-        HttpRequest req = HttpRequest.newBuilder(uri)
+        URI source = pickMirror();
+        HttpRequest req = HttpRequest.newBuilder(source)
                 .GET()
                 .timeout(Duration.ofMinutes(10))
                 .header("Range", "bytes=" + start + "-" + end)
@@ -85,7 +101,7 @@ public final class RangeWorker implements Runnable {
         try (InputStream in = res.body();
              FileChannel ch = FileChannel.open(target,
                      StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ)) {
-            byte[] buf = new byte[BUFFER_SIZE];
+            byte[] buf = new byte[bufferSize];
             long position = start;
             int read;
             while (!stopFlag.get() && position <= seg.end() && (read = in.read(buf)) != -1) {
@@ -100,5 +116,11 @@ public final class RangeWorker implements Runnable {
             }
             ch.force(false);
         }
+    }
+
+    private URI pickMirror() {
+        if (mirrors.size() == 1) return mirrors.get(0);
+        int idx = Math.floorMod(mirrorCursor.getAndIncrement(), mirrors.size());
+        return mirrors.get(idx);
     }
 }

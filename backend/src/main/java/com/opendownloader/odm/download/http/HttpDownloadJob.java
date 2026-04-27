@@ -19,10 +19,10 @@ import org.slf4j.LoggerFactory;
 import com.opendownloader.odm.download.ProgressBus;
 import com.opendownloader.odm.download.queue.RateLimiter;
 
-public final class HttpDownloadJob {
+public final class HttpDownloadJob implements DownloadRunner {
 
     private static final Logger log = LoggerFactory.getLogger(HttpDownloadJob.class);
-    private static final int BUFFER_SIZE = 64 * 1024;
+    private static final int DEFAULT_BUFFER_SIZE = 512 * 1024;
 
     private final String id;
     private final HttpClient client;
@@ -32,10 +32,17 @@ public final class HttpDownloadJob {
     private final boolean acceptsRanges;
     private final ProgressBus progressBus;
     private final RateLimiter rateLimiter;
+    private final int bufferSize;
     private final AtomicBoolean stopFlag = new AtomicBoolean(false);
 
     public HttpDownloadJob(String id, HttpClient client, URI uri, Path target,
                            long totalSize, boolean acceptsRanges, ProgressBus bus, RateLimiter rateLimiter) {
+        this(id, client, uri, target, totalSize, acceptsRanges, bus, rateLimiter, DEFAULT_BUFFER_SIZE);
+    }
+
+    public HttpDownloadJob(String id, HttpClient client, URI uri, Path target,
+                           long totalSize, boolean acceptsRanges, ProgressBus bus, RateLimiter rateLimiter,
+                           int bufferSize) {
         this.id = id;
         this.client = client;
         this.uri = uri;
@@ -44,6 +51,7 @@ public final class HttpDownloadJob {
         this.acceptsRanges = acceptsRanges;
         this.progressBus = bus;
         this.rateLimiter = rateLimiter;
+        this.bufferSize = Math.max(8 * 1024, bufferSize);
     }
 
     public void stop() {
@@ -82,7 +90,7 @@ public final class HttpDownloadJob {
                      StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ)) {
             channel.truncate(existing);
             channel.position(existing);
-            byte[] buf = new byte[BUFFER_SIZE];
+            byte[] buf = new byte[bufferSize];
             long written = existing;
             int read;
             while (!stopFlag.get() && (read = in.read(buf)) != -1) {
