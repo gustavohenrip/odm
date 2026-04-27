@@ -27,6 +27,12 @@ public class ScheduleRuleEntity {
     @Column(name = "label", length = 128)
     private String label;
 
+    @Column(name = "shutdown_after", nullable = false)
+    private boolean shutdownAfter;
+
+    @Column(name = "rate_limit_kbps")
+    private Long rateLimitKbps;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getCronStart() { return cronStart; }
@@ -37,4 +43,8 @@ public class ScheduleRuleEntity {
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public String getLabel() { return label; }
     public void setLabel(String label) { this.label = label; }
+    public boolean isShutdownAfter() { return shutdownAfter; }
+    public void setShutdownAfter(boolean shutdownAfter) { this.shutdownAfter = shutdownAfter; }
+    public Long getRateLimitKbps() { return rateLimitKbps; }
+    public void setRateLimitKbps(Long rateLimitKbps) { this.rateLimitKbps = rateLimitKbps; }
 }
