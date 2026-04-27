@@ -49,7 +49,7 @@ import { DownloadsService } from '../../core/api/downloads.service';
       display: grid;
       grid-template-columns: 232px 1fr;
       height: 100%;
-      padding: 16px;
+      padding: 32px 16px 16px;
       gap: 16px;
     }
     .main {
@@ -78,7 +78,7 @@ import { DownloadsService } from '../../core/api/downloads.service';
         flex-direction: column;
         min-height: 100%;
         height: auto;
-        padding: 10px;
+        padding: 28px 10px 10px;
         gap: 10px;
       }
       .main {

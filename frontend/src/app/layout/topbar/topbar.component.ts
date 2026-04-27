@@ -20,22 +20,6 @@ import { ThemeService } from '../../core/theme/theme.service';
 
         <div class="spacer"></div>
 
-        <div class="url-paste" role="button" tabindex="0" (click)="pasteUrl.emit()">
-          <app-icon name="link" [size]="13"></app-icon>
-          <span>{{ 'actions.pasteUrlOrDrop' | translate }}</span>
-          <span class="spacer"></span>
-          <span class="kbd">⌘V</span>
-        </div>
-
-        <div class="bulk-seg" role="group" [attr.aria-label]="'actions.bulk' | translate">
-          <button type="button" class="seg" (click)="resumeAll.emit()" [attr.aria-label]="'actions.resumeAll' | translate" [title]="'actions.resumeAll' | translate">
-            <app-icon name="play" [size]="13"></app-icon>
-          </button>
-          <button type="button" class="seg" (click)="pauseAll.emit()" [attr.aria-label]="'actions.pauseAll' | translate" [title]="'actions.pauseAll' | translate">
-            <app-icon name="pause" [size]="13"></app-icon>
-          </button>
-        </div>
-
         <div class="theme-seg" role="group" aria-label="Theme">
           <button type="button" class="seg" [class.active]="theme() === 'light'" (click)="setTheme('light')" aria-label="Light theme">
             <app-icon name="sun" [size]="13"></app-icon>
