@@ -4,6 +4,7 @@ const { startBackend, stopBackend, getBackendInfo } = require('./backend-sidecar
 const clipboardWatcher = require('./clipboard-watcher.cjs');
 const tray = require('./tray.cjs');
 const nativeHost = require('./native-host-installer.cjs');
+const discoveryServer = require('./discovery-server.cjs');
 
 const isDev = process.env.ODM_DEV === '1';
 let mainWindow = null;
@@ -71,6 +72,12 @@ app.whenReady().then(async () => {
     console.warn('[ODM] native host install skipped:', err && err.message);
   }
 
+  try {
+    await discoveryServer.start(() => getBackendInfo());
+  } catch (err) {
+    console.warn('[ODM] discovery server failed:', err && err.message);
+  }
+
   createWindow();
   tray.build(mainWindow, () => { quitting = true; app.quit(); });
 
@@ -90,5 +97,6 @@ app.on('before-quit', () => {
   quitting = true;
   clipboardWatcher.stop();
   tray.destroy();
+  discoveryServer.stop();
   stopBackend();
 });
