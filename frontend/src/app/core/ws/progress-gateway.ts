@@ -4,6 +4,11 @@ import { Client, IMessage } from '@stomp/stompjs';
 import { Download } from '../api/download.model';
 import { BackendConfigService } from '../api/backend-config.service';
 
+export interface SystemEvent {
+  type: string;
+  payload: Record<string, unknown>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgressGateway {
   private readonly zone = inject(NgZone);
@@ -12,6 +17,7 @@ export class ProgressGateway {
 
   readonly connected = signal(false);
   readonly updates = signal<Download[]>([]);
+  readonly systemEvent = signal<SystemEvent | null>(null);
 
   async connect(): Promise<void> {
     if (this.client) return;
@@ -25,7 +31,8 @@ export class ProgressGateway {
       heartbeatOutgoing: 10000,
       onConnect: () => {
         this.zone.run(() => this.connected.set(true));
-        this.client?.subscribe('/topic/progress', (msg: IMessage) => this.onMessage(msg));
+        this.client?.subscribe('/topic/progress', (msg: IMessage) => this.onProgress(msg));
+        this.client?.subscribe('/topic/system', (msg: IMessage) => this.onSystem(msg));
       },
       onDisconnect: () => this.zone.run(() => this.connected.set(false)),
       onStompError: () => this.zone.run(() => this.connected.set(false)),
@@ -39,7 +46,7 @@ export class ProgressGateway {
     this.connected.set(false);
   }
 
-  private onMessage(msg: IMessage): void {
+  private onProgress(msg: IMessage): void {
     try {
       const payload = JSON.parse(msg.body) as Array<Download & { kind?: string; status?: string }>;
       const normalized = payload.map((item) => ({
@@ -52,6 +59,13 @@ export class ProgressGateway {
         return { ...item, progress, speedBps };
       });
       this.zone.run(() => this.updates.set(normalized));
+    } catch {}
+  }
+
+  private onSystem(msg: IMessage): void {
+    try {
+      const payload = JSON.parse(msg.body) as SystemEvent;
+      this.zone.run(() => this.systemEvent.set({ ...payload, type: String(payload.type ?? '') }));
     } catch {}
   }
 }
