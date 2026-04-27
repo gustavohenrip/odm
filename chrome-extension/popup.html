@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ODM Integration</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="card">
+    <header>
+      <div class="brand">ODM</div>
+      <label class="toggle">
+        <input id="enabled" type="checkbox" />
+        <span></span>
+      </label>
+    </header>
+    <div class="status">
+      <div class="dot" id="dot"></div>
+      <div class="text">
+        <div class="primary" id="state">Checking ODM…</div>
+        <div class="secondary" id="detail"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="send-current" type="button">Send current tab to ODM</button>
+      <button id="open-options" type="button" class="ghost">Settings</button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

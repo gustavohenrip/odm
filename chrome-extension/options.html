@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ODM Integration — Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <main>
+    <h1>ODM Integration</h1>
+    <p class="lead">Routes downloads from Chrome to the local ODM desktop app.</p>
+
+    <section>
+      <label class="row">
+        <span>Enable interception</span>
+        <input id="enabled" type="checkbox" />
+      </label>
+      <label class="row">
+        <span>Show notifications</span>
+        <input id="showNotifications" type="checkbox" />
+      </label>
+      <label class="row">
+        <span>Minimum size to capture (KB)</span>
+        <input id="minSizeKB" type="number" min="0" />
+      </label>
+    </section>
+
+    <section>
+      <h2>File extensions</h2>
+      <p class="hint">Comma separated list. Files with these extensions are always sent to ODM.</p>
+      <textarea id="extensions" rows="4"></textarea>
+    </section>
+
+    <section>
+      <h2>Excluded hosts</h2>
+      <p class="hint">One per line. Downloads from these hostnames stay in Chrome.</p>
+      <textarea id="excludeHosts" rows="3"></textarea>
+    </section>
+
+    <section>
+      <h2>Excluded MIME types</h2>
+      <p class="hint">Comma separated.</p>
+      <textarea id="excludeMime" rows="2"></textarea>
+    </section>
+
+    <div class="actions">
+      <button id="save" type="button">Save</button>
+      <button id="reset" type="button" class="ghost">Reset defaults</button>
+    </div>
+    <div id="status" class="status"></div>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

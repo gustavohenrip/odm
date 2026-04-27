@@ -1,0 +1,100 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: #f6f7f9;
+  color: #1c1d20;
+  width: 280px;
+}
+.card {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: #1c1d20;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 7px;
+}
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  display: inline-block;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle span {
+  position: absolute;
+  inset: 0;
+  background: #d3d6db;
+  border-radius: 999px;
+  transition: background 0.18s ease;
+}
+.toggle span::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.toggle input:checked + span { background: #2c7be5; }
+.toggle input:checked + span::after { transform: translateX(16px); }
+
+.status {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #e6e8ec;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: #c7ccd2;
+}
+.dot.ok { background: #28c76f; }
+.dot.err { background: #ea5455; }
+.text { flex: 1; min-width: 0; }
+.primary { font-size: 12.5px; font-weight: 550; }
+.secondary {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 2px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  word-break: break-all;
+}
+.actions { display: flex; gap: 8px; }
+button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 0;
+  background: #1c1d20;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+button.ghost {
+  background: #fff;
+  border: 1px solid #d3d6db;
+  color: #1c1d20;
+}
+button:hover { opacity: 0.92; }
