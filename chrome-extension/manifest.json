@@ -5,17 +5,25 @@
   "version": "1.0.0",
   "description": "Captures downloads from Chrome and routes them to the ODM desktop app, IDM-style.",
   "minimum_chrome_version": "108",
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  "icons": {
-    "128": "icon.png"
-  },
   "action": {
     "default_title": "ODM Integration",
     "default_popup": "popup.html",
-    "default_icon": "icon.png"
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
   },
   "options_page": "options.html",
   "permissions": [
