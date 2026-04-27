@@ -50,6 +50,11 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
             <app-icon name="play" [size]="12"></app-icon>
           </app-icon-btn>
         }
+        @if (d.status === 'failed' || d.status === 'paused') {
+          <app-icon-btn (click)="onRefresh()" [ariaLabel]="'actions.refresh' | translate">
+            <app-icon name="refresh" [size]="12"></app-icon>
+          </app-icon-btn>
+        }
         @if (d.status === 'complete') {
           <app-icon-btn (click)="openFolder.emit(d.id)" [ariaLabel]="'actions.openFolder' | translate">
             <app-icon name="folder" [size]="13"></app-icon>
@@ -65,7 +70,7 @@ import { formatBytes, formatEta, formatSpeed } from '../../shared/format/format'
     :host { display: block; }
     .row {
       display: grid;
-      grid-template-columns: 40px minmax(0,1.9fr) 90px 110px 90px minmax(0,1.1fr) 96px;
+      grid-template-columns: 40px minmax(0,1.9fr) 90px 110px 90px minmax(0,1.1fr) 120px;
       padding: 15px 22px;
       gap: 16px;
       align-items: center;
@@ -164,6 +169,7 @@ export class QueueRowComponent {
   @Output() resume = new EventEmitter<string>();
   @Output() openFolder = new EventEmitter<string>();
   @Output() remove = new EventEmitter<string>();
+  @Output() refresh = new EventEmitter<{ id: string; url: string }>();
 
   get size(): string { return formatBytes(this.d.sizeBytes); }
   get speed(): string { return this.d.status === 'downloading' ? formatSpeed(this.d.speedBps) : '—'; }
@@ -175,5 +181,13 @@ export class QueueRowComponent {
   get pct(): string {
     if (this.d.sizeBytes <= 0) return '—';
     return `${Math.round(Math.max(0, Math.min(1, this.d.progress)) * 100)}%`;
+  }
+
+  onRefresh(): void {
+    const next = window.prompt('Refresh URL', this.d.url ?? '');
+    if (next == null) return;
+    const trimmed = next.trim();
+    if (!trimmed) return;
+    this.refresh.emit({ id: this.d.id, url: trimmed });
   }
 }
